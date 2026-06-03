@@ -87,11 +87,6 @@ final class MenuBarController: NSObject {
     private func updateButtonAppearance() {
         guard let button = statusItem?.button else { return }
 
-        if button.image == nil {
-            button.image = NotchyStatusGlyph.image()
-            button.image?.isTemplate = true
-        }
-
         // Trailing value next to the glyph.
         let value: String
         if case .syncing = appState.syncStatus {
@@ -115,7 +110,20 @@ final class MenuBarController: NSObject {
             default:        tint = nil
             }
         }
-        button.contentTintColor = tint
+
+        // Render the glyph directly rather than tinting via `button.contentTintColor`.
+        // A non-nil `contentTintColor` overrides the status bar's automatic template
+        // tinting — the mechanism that makes the glyph render white over a dark or
+        // translucent menu bar (e.g. Light mode sitting on a dark wallpaper) and black
+        // over a light one. When the colour carries meaning we bake it into a
+        // non-template copy instead; otherwise we hand the menu bar a clean template
+        // image and let it adapt on its own. We never assign `contentTintColor` so the
+        // template path is always honoured.
+        if let tint {
+            button.image = NotchyStatusGlyph.coloredImage(tint)
+        } else {
+            button.image = NotchyStatusGlyph.image()
+        }
 
         // Respect the user's chosen menu-bar style. Value-only with no value
         // falls back to the icon so the item never goes invisible.
@@ -172,42 +180,119 @@ final class MenuBarController: NSObject {
 /// Draws the Notchy mascot as a crisp monochrome template image for the menu bar:
 /// a rounded "screen" with a little notch tab on top and two eye cut-outs.
 /// Rendered as a template so macOS handles light/dark + selection automatically.
+///
+/// The glyph is backed by an `NSBitmapImageRep` rather than the block-based
+/// `NSImage(size:flipped:drawingHandler:)` initializer. That initializer yields
+/// an `NSCustomImageRep`, which the status bar does not always tint as a template
+/// — so on a dark or translucent menu bar (for example Light mode over a dark
+/// wallpaper) the glyph could render black and become invisible. A bitmap-backed
+/// template image is tinted reliably (issue #13).
 enum NotchyStatusGlyph {
+    // `updateButtonAppearance()` runs on every published state change, so the glyph
+    // is requested far more often than it actually changes. Cache the rendered
+    // images (all on the main thread) to avoid repeated bitmap allocation + drawing.
+    private static var templateCache: NSImage?
+    private static var coloredCache: [NSColor: NSImage] = [:]
+
+    /// Monochrome template image — the menu bar tints it (white over a dark bar,
+    /// black over a light one, dimmed when the app is inactive) automatically.
     static func image(pointSize: CGFloat = 15) -> NSImage {
+        if let cached = templateCache { return cached }
+        let rendered = renderImage(pointSize: pointSize, fill: .black, isTemplate: true)
+        templateCache = rendered
+        return rendered
+    }
+
+    /// Solid-colour, non-template copy used when the colour carries meaning
+    /// (warning / critical / outage). Baking the colour in keeps us off
+    /// `contentTintColor`, which would otherwise disable template tinting.
+    static func coloredImage(_ color: NSColor, pointSize: CGFloat = 15) -> NSImage {
+        if let cached = coloredCache[color] { return cached }
+        let rendered = renderImage(pointSize: pointSize, fill: color, isTemplate: false)
+        coloredCache[color] = rendered
+        return rendered
+    }
+
+    private static func renderImage(pointSize: CGFloat, fill: NSColor, isTemplate: Bool) -> NSImage {
         let size = NSSize(width: ceil(pointSize * 1.15), height: pointSize)
+        let scale: CGFloat = 2 // render @2x so the glyph stays crisp on Retina displays
+
+        // Round pixel dimensions up so a non-integer point size never under-allocates
+        // the backing store (which would clip the glyph).
+        guard let rep = NSBitmapImageRep(
+            bitmapDataPlanes: nil,
+            pixelsWide: Int(ceil(size.width * scale)),
+            pixelsHigh: Int(ceil(size.height * scale)),
+            bitsPerSample: 8,
+            samplesPerPixel: 4,
+            hasAlpha: true,
+            isPlanar: false,
+            colorSpaceName: .deviceRGB,
+            bytesPerRow: 0,
+            bitsPerPixel: 0
+        ) else {
+            // If the bitmap rep can't be allocated, fall back to a drawing-handler
+            // image. Its template tinting is less reliable, but a visible glyph beats
+            // an empty one — the status icon must never disappear entirely (issue #13).
+            return fallbackImage(size: size, fill: fill, isTemplate: isTemplate)
+        }
+        rep.size = size
+
+        NSGraphicsContext.saveGraphicsState()
+        NSGraphicsContext.current = NSGraphicsContext(bitmapImageRep: rep)
+        let rect = NSRect(origin: .zero, size: size)
+        // The freshly allocated buffer isn't guaranteed to be zeroed, so clear it to
+        // transparent before drawing — otherwise the area outside the glyph could
+        // contain garbage instead of the transparency a template image relies on.
+        NSColor.clear.set()
+        rect.fill()
+        draw(in: rect, fill: fill)
+        NSGraphicsContext.restoreGraphicsState()
+
+        let image = NSImage(size: size)
+        image.addRepresentation(rep)
+        image.isTemplate = isTemplate
+        return image
+    }
+
+    private static func fallbackImage(size: NSSize, fill: NSColor, isTemplate: Bool) -> NSImage {
         let image = NSImage(size: size, flipped: false) { rect in
-            // Head / screen
-            let head = NSRect(
-                x: rect.width * 0.06,
-                y: rect.height * 0.02,
-                width: rect.width * 0.88,
-                height: rect.height * 0.74
-            )
-            let path = NSBezierPath()
-            path.windingRule = .evenOdd
-            path.append(NSBezierPath(roundedRect: head,
-                                     xRadius: rect.height * 0.22,
-                                     yRadius: rect.height * 0.22))
-
-            // Notch tab on top (the logo's red bit), touching the head edge.
-            let tabW = rect.width * 0.30
-            let tabH = rect.height * 0.18
-            let tab = NSRect(x: rect.midX - tabW / 2, y: head.maxY - 0.5, width: tabW, height: tabH)
-            path.append(NSBezierPath(roundedRect: tab, xRadius: tabH * 0.45, yRadius: tabH * 0.45))
-
-            // Two eyes, punched out via even-odd winding.
-            let eyeR = rect.height * 0.105
-            let eyeY = head.midY - eyeR
-            let dx = rect.width * 0.18
-            path.append(NSBezierPath(ovalIn: NSRect(x: rect.midX - dx - eyeR, y: eyeY, width: eyeR * 2, height: eyeR * 2)))
-            path.append(NSBezierPath(ovalIn: NSRect(x: rect.midX + dx - eyeR, y: eyeY, width: eyeR * 2, height: eyeR * 2)))
-
-            NSColor.black.setFill()
-            path.fill()
+            draw(in: rect, fill: fill)
             return true
         }
-        image.isTemplate = true
+        image.isTemplate = isTemplate
         return image
+    }
+
+    private static func draw(in rect: NSRect, fill: NSColor) {
+        // Head / screen
+        let head = NSRect(
+            x: rect.width * 0.06,
+            y: rect.height * 0.02,
+            width: rect.width * 0.88,
+            height: rect.height * 0.74
+        )
+        let path = NSBezierPath()
+        path.windingRule = .evenOdd
+        path.append(NSBezierPath(roundedRect: head,
+                                 xRadius: rect.height * 0.22,
+                                 yRadius: rect.height * 0.22))
+
+        // Notch tab on top (the logo's red bit), touching the head edge.
+        let tabW = rect.width * 0.30
+        let tabH = rect.height * 0.18
+        let tab = NSRect(x: rect.midX - tabW / 2, y: head.maxY - 0.5, width: tabW, height: tabH)
+        path.append(NSBezierPath(roundedRect: tab, xRadius: tabH * 0.45, yRadius: tabH * 0.45))
+
+        // Two eyes, punched out via even-odd winding.
+        let eyeR = rect.height * 0.105
+        let eyeY = head.midY - eyeR
+        let dx = rect.width * 0.18
+        path.append(NSBezierPath(ovalIn: NSRect(x: rect.midX - dx - eyeR, y: eyeY, width: eyeR * 2, height: eyeR * 2)))
+        path.append(NSBezierPath(ovalIn: NSRect(x: rect.midX + dx - eyeR, y: eyeY, width: eyeR * 2, height: eyeR * 2)))
+
+        fill.setFill()
+        path.fill()
     }
 }
 
@@ -310,18 +395,28 @@ private struct MenuBarPopoverView: View {
         } label: {
             VStack(spacing: 7) {
                 HStack(spacing: 10) {
-                    // Icon bubble, tinted by the provider's brand color (identity);
-                    // health stays in the status dot/value on the right.
+                    // Icon bubble tinted with the provider's brand color (identity).
+                    // The brand logo always stays visible — even during an outage —
+                    // with an issue shown as a small corner badge (issue #13/#14),
+                    // while health stays in the status dot/value on the right.
                     ZStack {
                         RoundedRectangle(cornerRadius: 8, style: .continuous)
                             .fill((incident == nil ? id.brandColor : tint).opacity(0.18))
                             .frame(width: 30, height: 30)
+                        ProviderIconView(id: id, size: 18, fallbackColor: tint)
+                    }
+                    .overlay(alignment: .topTrailing) {
                         if let incident {
                             Image(systemName: incident.level.glyph)
-                                .font(.system(size: 13, weight: .semibold))
-                                .foregroundColor(tint)
-                        } else {
-                            ProviderIconView(id: id, size: 18, fallbackColor: tint)
+                                .font(.system(size: 9, weight: .bold))
+                                .foregroundColor(incident.level.tint)
+                                .padding(2)
+                                .background(
+                                    Circle()
+                                        .fill(Color.black.opacity(0.85))
+                                        .overlay(Circle().strokeBorder(Theme.stroke, lineWidth: 0.5))
+                                )
+                                .offset(x: 4, y: -4)
                         }
                     }
 
