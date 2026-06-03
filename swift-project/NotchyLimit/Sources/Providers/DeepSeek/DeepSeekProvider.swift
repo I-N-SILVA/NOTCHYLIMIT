@@ -40,8 +40,12 @@ struct DeepSeekBalanceDTO: Decodable {
 
         enum CodingKeys: String, CodingKey {
             case currency
-            case totalBalance = "total_balance"
+            case totalBalance    = "total_balance"
+            case grantedBalance  = "granted_balance"
+            case toppedUpBalance = "topped_up_balance"
         }
+        let grantedBalance: String?
+        let toppedUpBalance: String?
     }
     let isAvailable: Bool?
     let balanceInfos: [Info]?
@@ -63,7 +67,27 @@ enum DeepSeekUsageMapper {
         case let other?: symbol = "\(other) "
         default:    symbol = "$"
         }
-        return .balance(providerId: .deepseek, label: "\(symbol)\(amount)", capturedAt: capturedAt)
+
+        // Total is the headline. When DeepSeek splits it into free "granted"
+        // credits vs. "topped-up" (paid) credits, surface that — it's the
+        // difference between burning trial credit and your own money.
+        var label = "\(symbol)\(amount)"
+        let granted = num(info?.grantedBalance)
+        let paid    = num(info?.toppedUpBalance)
+        if granted > 0 && paid > 0 {
+            label += " (\(symbol)\(fmt(granted)) free + \(symbol)\(fmt(paid)) paid)"
+        } else if granted > 0 {
+            label += " (\(symbol)\(fmt(granted)) free)"
+        } else if paid > 0 {
+            label += " (\(symbol)\(fmt(paid)) paid)"
+        }
+
+        return .balance(providerId: .deepseek, label: label, amount: num(info?.totalBalance), amountKind: .remaining, capturedAt: capturedAt)
+    }
+
+    private static func num(_ s: String?) -> Double { s.flatMap { Double($0) } ?? 0 }
+    private static func fmt(_ v: Double) -> String {
+        v == v.rounded() ? String(format: "%.0f", v) : String(format: "%.2f", v)
     }
 }
 

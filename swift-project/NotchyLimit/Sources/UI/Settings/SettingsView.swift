@@ -203,6 +203,20 @@ struct SettingsView: View {
                 .font(Theme.captionFont)
                 .foregroundColor(Theme.textSecondary)
 
+            Divider().background(Theme.stroke)
+
+            HStack {
+                Text("Menu bar shows").foregroundColor(Theme.textPrimary)
+                Spacer()
+                Picker("Menu bar shows", selection: $appState.menuBarStyle) {
+                    ForEach(MenuBarStyle.allCases, id: \.self) { style in
+                        Text(style.label).tag(style)
+                    }
+                }
+                .pickerStyle(.segmented)
+                .frame(width: 280)
+            }
+
             Spacer()
         }
         .padding(.vertical, 8)
@@ -279,6 +293,28 @@ struct SettingsView: View {
                     .tint(on ? Theme.accentWarm : Theme.textSecondary)
                 }
             }
+            Divider().background(Theme.stroke)
+
+            Text("Low-balance alert")
+                .font(Theme.captionFont)
+                .foregroundColor(Theme.textSecondary)
+            HStack(spacing: 8) {
+                Text("Warn when credit drops below").foregroundColor(Theme.textPrimary)
+                Spacer()
+                Picker("Low balance", selection: $appState.lowBalanceThreshold) {
+                    Text("Off").tag(Double(0))
+                    Text("$2").tag(Double(2))
+                    Text("$5").tag(Double(5))
+                    Text("$10").tag(Double(10))
+                    Text("$25").tag(Double(25))
+                }
+                .pickerStyle(.segmented)
+                .frame(width: 280)
+            }
+            Text("Applies to balance providers like DeepSeek and Copilot spend.")
+                .font(Theme.captionFont)
+                .foregroundColor(Theme.textSecondary)
+
             Button("Send test notification") { NotificationService.shared.sendTest() }
                 .buttonStyle(.bordered)
             Spacer()

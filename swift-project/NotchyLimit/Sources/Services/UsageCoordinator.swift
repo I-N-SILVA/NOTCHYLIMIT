@@ -45,6 +45,7 @@ public final class UsageCoordinator {
 
     public func start() {
         reconcileEnabledProviders()
+        LocalAPIServer.shared.start()
 
         // Pipe snapshots into both the legacy `latestSnapshot` and the multi-provider dict.
         usageService.snapshotPublisher
@@ -59,6 +60,8 @@ public final class UsageCoordinator {
                     self.appState.syncStatus     = .ok(at: Date())
                 }
                 self.handleNotifications(for: snapshot)
+                UsageHistory.shared.record(snapshot)
+                LocalAPIServer.shared.update(UsageExporter.json(from: self.appState.snapshots))
             }
             .store(in: &cancellables)
 
@@ -101,6 +104,7 @@ public final class UsageCoordinator {
     public func stop() {
         usageService.stopAll()
         IncidentMonitor.shared.stop()
+        LocalAPIServer.shared.stop()
         cancellables.removeAll()
     }
 
@@ -140,5 +144,8 @@ public final class UsageCoordinator {
         notifications.evaluate(snapshot: snapshot,
                                thresholds: appState.thresholds,
                                providerId: snapshot.providerId)
+        notifications.evaluateBalance(snapshot: snapshot,
+                                      threshold: appState.lowBalanceThreshold,
+                                      providerId: snapshot.providerId)
     }
 }

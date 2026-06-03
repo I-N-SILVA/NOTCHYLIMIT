@@ -9,6 +9,8 @@ import SwiftUI
 struct RetroMascot: View {
     var size: CGFloat = 40
     var usagePercent: Double = 0
+    /// When true the mascot dozes (eyes shut) — used when no provider has data yet.
+    var noData: Bool = false
 
     // Breathing
     @State private var breatheScale: CGFloat = 1.0
@@ -24,12 +26,13 @@ struct RetroMascot: View {
     @State private var headTilt: Double = 0
 
     private var mood: Mood {
+        if noData { return .asleep }
         if usagePercent >= 0.9  { return .alarmed }
         if usagePercent >= 0.75 { return .worried }
         return .happy
     }
 
-    enum Mood { case happy, worried, alarmed }
+    enum Mood { case happy, worried, alarmed, asleep }
 
     var body: some View {
         ZStack {
@@ -72,7 +75,7 @@ struct RetroMascot: View {
                 .rotationEffect(.degrees(headTilt))
 
             // ── Brow (worried/alarmed only) ──────────────────────────────────
-            if mood != .happy {
+            if mood == .worried || mood == .alarmed {
                 HStack(spacing: size * 0.14) {
                     browLine(flip: false)
                     browLine(flip: true)
@@ -111,7 +114,7 @@ struct RetroMascot: View {
             .fill(moodColor)
             .frame(
                 width:  size * (mood == .alarmed ? 0.15 : 0.12),
-                height: blink ? size * 0.02 : size * (mood == .alarmed ? 0.20 : 0.16)
+                height: (blink || mood == .asleep) ? size * 0.02 : size * (mood == .alarmed ? 0.20 : 0.16)
             )
             .shadow(color: moodColor.opacity(0.5), radius: size * 0.06)
     }
@@ -143,6 +146,11 @@ struct RetroMascot: View {
                 .stroke(Theme.statusCritical.opacity(0.9),
                         style: StrokeStyle(lineWidth: size * 0.05))
                 .frame(width: size * 0.18, height: size * 0.14)
+        case .asleep:
+            // Tiny resting line
+            Capsule()
+                .fill(Theme.textSecondary.opacity(0.5))
+                .frame(width: size * 0.14, height: size * 0.035)
         }
     }
 
@@ -153,6 +161,7 @@ struct RetroMascot: View {
         case .happy:   return Theme.accentWarm
         case .worried: return Theme.statusWarning
         case .alarmed: return Theme.statusCritical
+        case .asleep:  return Theme.textSecondary
         }
     }
 
@@ -196,6 +205,7 @@ struct RetroMascot: View {
     // Cancellable blink loop — runs as a .task(id: mood) so it restarts cleanly on
     // mood change without accumulating parallel chains like the old recursive approach.
     private func blinkLoop() async {
+        guard mood != .asleep else { return }   // eyes stay shut while dozing
         let interval = UInt64((mood == .alarmed ? 1.2 : mood == .worried ? 2.2 : 3.5) * 1_000_000_000)
         defer { withAnimation(.easeInOut(duration: 0.09)) { blink = false } }
         while !Task.isCancelled {

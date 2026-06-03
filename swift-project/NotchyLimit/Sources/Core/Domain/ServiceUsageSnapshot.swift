@@ -71,13 +71,17 @@ public struct ServiceUsageSnapshot: Codable, Hashable {
     public static func balance(
         providerId: ProviderId,
         label: String,
+        amount: Double? = nil,
+        amountKind: AmountKind = .none,
         capturedAt: Date = Date()
     ) -> ServiceUsageSnapshot {
         let window = UsageWindow(
             type: .balance,
             percentUsed: 0,
+            usedAmount: amount,   // numeric balance, for low-balance alerts + aggregation
             lastUpdated: capturedAt,
-            label: label
+            label: label,
+            amountKind: amountKind
         )
         return ServiceUsageSnapshot(
             providerId: providerId,

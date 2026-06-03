@@ -62,7 +62,8 @@ enum OpenRouterUsageMapper {
             usedAmount: usage,
             limitAmount: credits,
             resetAt: nil,
-            lastUpdated: capturedAt
+            lastUpdated: capturedAt,
+            amountKind: .spend
         )
         return ServiceUsageSnapshot(
             providerId: .openrouter,

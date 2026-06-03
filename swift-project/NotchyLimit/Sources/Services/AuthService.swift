@@ -19,15 +19,26 @@ public final class AuthService {
         return ProviderId.allCases.contains { hasCredential(for: $0) }
     }
 
-    /// True when a provider can authenticate from a CLI-written OAuth token file
-    /// (no key to paste): Claude (`~/.claude`), Codex (`~/.codex`), Gemini (`~/.gemini`).
+    /// True when a provider can authenticate from a token another tool already
+    /// wrote to disk (no key to paste): Claude (`~/.claude` / Keychain), Codex
+    /// (`~/.codex`), Gemini (`~/.gemini` or Antigravity), Perplexity (the macOS
+    /// app's cache).
     public func cliOAuthAvailable(for providerId: ProviderId) -> Bool {
         switch providerId {
-        case .claude: return ClaudeOAuthCredential.isAvailable()
-        case .codex:  return CodexOAuthCredential.isAvailable()
-        case .gemini: return GeminiOAuthCredential.isAvailable()
-        default:      return false
+        case .claude:     return ClaudeOAuthCredential.isAvailable()
+        case .codex:      return CodexOAuthCredential.isAvailable()
+        case .gemini:     return GeminiOAuthCredential.isAvailable() || GeminiAntigravityCredential.isAvailable()
+        case .perplexity: return PerplexityAppCredential.isAvailable()
+        default:          return false
         }
+    }
+
+    /// Providers Notchy can light up with zero typing because a token is already
+    /// on this machine. Powers the onboarding "Scan my machine" button.
+    /// (GitHub Copilot is intentionally excluded — a `gh` token usually lacks
+    /// the billing/Plan scope, so it needs a purpose-made PAT.)
+    public func detectInstalledProviders() -> [ProviderId] {
+        ProviderId.allCases.filter { cliOAuthAvailable(for: $0) }
     }
 
     public func clearCredential(for providerId: ProviderId) {
@@ -200,6 +211,27 @@ public final class AuthService {
             return "Failed to encode credential."
         }
         store.set(account: ProviderId.elevenlabs.rawValue, data: data)
+        return nil
+    }
+
+    // MARK: - GitHub Copilot
+
+    @discardableResult
+    public func saveCopilotCredential(_ credential: CopilotCredential) -> String? {
+        let trimmed = credential.apiKey.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return "Token cannot be empty." }
+        let prefixes = ["ghp_", "github_pat_", "gho_", "ghu_", "ghs_"]
+        guard prefixes.contains(where: { trimmed.hasPrefix($0) }) else {
+            return "That doesn't look like a GitHub token. Create one at github.com → Settings → Developer settings → Personal access tokens, with the Plan (read-only) permission."
+        }
+        guard trimmed.count >= 20 else { return "Token looks too short." }
+        let sanitized = CopilotCredential(
+            apiKey: trimmed, storedAt: credential.storedAt, lastValidatedAt: credential.lastValidatedAt
+        )
+        guard let data = try? JSONEncoder().encode(sanitized) else {
+            return "Failed to encode credential."
+        }
+        store.set(account: ProviderId.copilot.rawValue, data: data)
         return nil
     }
 

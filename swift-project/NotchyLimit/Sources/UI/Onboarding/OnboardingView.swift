@@ -12,6 +12,7 @@ struct OnboardingView: View {
     private func close() { appState.showOnboarding = false }
 
     @State private var step: Step = .welcome
+    @State private var scanResult: String?
     @State private var selectedProvider: ProviderId = .claude
     @State private var credentialInput: String = ""
     @State private var validating: Bool = false
@@ -78,7 +79,44 @@ struct OnboardingView: View {
                     .foregroundColor(Theme.textSecondary)
             }
             pillPreviewCard
+
+            // One-tap setup: light up everything we can already see on this Mac.
+            VStack(alignment: .leading, spacing: 6) {
+                Button(action: scanMachine) {
+                    HStack(spacing: 6) {
+                        Image(systemName: "sparkle.magnifyingglass")
+                        Text("Scan my machine")
+                    }
+                }
+                .buttonStyle(.borderedProminent)
+                .tint(Theme.accentWarm)
+                Text("Detects Claude, Codex, Gemini/Antigravity and the Perplexity app — no keys to paste.")
+                    .font(Theme.captionFont)
+                    .foregroundColor(Theme.textSecondary)
+                if let scanResult {
+                    Text(scanResult)
+                        .font(Theme.captionFont)
+                        .foregroundColor(Theme.statusHealthy)
+                }
+            }
         }
+    }
+
+    private func scanMachine() {
+        let found = AuthService.shared.detectInstalledProviders()
+        guard !found.isEmpty else {
+            scanResult = "Nothing detected yet — pick a provider with Continue."
+            return
+        }
+        for id in found where !appState.enabledProviders.contains(id) {
+            appState.enabledProviders.append(id)
+        }
+        appState.activeProviderId = found.first ?? appState.activeProviderId
+        for id in found {
+            (NSApp.delegate as? AppDelegate)?.coordinator?.onCredentialsSaved(for: id)
+        }
+        scanResult = "Connected \(found.count): " + found.map { $0.displayName }.joined(separator: ", ")
+        step = .notifications   // jump to the finish step
     }
 
     private var providerStep: some View {
@@ -187,6 +225,13 @@ struct OnboardingView: View {
                 hint: "Find it at elevenlabs.io → Profile → API key.",
                 note: "Notchy reads your monthly character usage vs. your plan limit. The key is stored in the macOS Keychain and only ever sent to api.elevenlabs.io.",
                 placeholder: "your-xi-api-key"
+            )
+        case .copilot:
+            apiKeyStep(
+                title: "Paste a GitHub token",
+                hint: "github.com → Settings → Developer settings → Personal access tokens. Give it the Plan (read-only) permission.",
+                note: "Notchy reads your Copilot spend for the current billing period. The token is stored in the macOS Keychain and only ever sent to api.github.com.",
+                placeholder: "github_pat_... or ghp_..."
             )
         }
     }
@@ -565,6 +610,10 @@ struct OnboardingView: View {
         case .elevenlabs:
             return AuthService.shared.saveElevenLabsCredential(
                 ElevenLabsCredential(apiKey: trimmed)
+            )
+        case .copilot:
+            return AuthService.shared.saveCopilotCredential(
+                CopilotCredential(apiKey: trimmed)
             )
         }
     }

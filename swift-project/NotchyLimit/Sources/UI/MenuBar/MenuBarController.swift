@@ -117,16 +117,21 @@ final class MenuBarController: NSObject {
         }
         button.contentTintColor = tint
 
-        if value.isEmpty {
-            button.imagePosition = .imageOnly
-            button.attributedTitle = NSAttributedString(string: "")
-        } else {
-            button.imagePosition = .imageLeading
-            button.attributedTitle = NSAttributedString(string: " \(value)", attributes: [
-                .foregroundColor: tint ?? NSColor.labelColor,
-                .font: NSFont.monospacedDigitSystemFont(ofSize: 11.5, weight: .medium)
-            ])
-        }
+        // Respect the user's chosen menu-bar style. Value-only with no value
+        // falls back to the icon so the item never goes invisible.
+        let style = appState.menuBarStyle
+        let showValue = style != .iconOnly && !value.isEmpty
+        let showIcon  = style != .valueOnly || value.isEmpty
+
+        let title = NSAttributedString(string: showValue ? " \(value)" : "", attributes: [
+            .foregroundColor: tint ?? NSColor.labelColor,
+            .font: NSFont.monospacedDigitSystemFont(ofSize: 11.5, weight: .medium)
+        ])
+        button.attributedTitle = title
+
+        if showIcon && showValue { button.imagePosition = .imageLeading }
+        else if showIcon         { button.imagePosition = .imageOnly }
+        else                     { button.imagePosition = .noImage }
 
         if let incident = appState.activeIncident {
             button.toolTip = "\(appState.activeProviderId.displayName): \(incident.summary)"
@@ -214,6 +219,7 @@ enum NotchyStatusGlyph {
 private struct MenuBarPopoverView: View {
     @ObservedObject var appState: AppState
     let onClose: () -> Void
+    @State private var expandedProvider: ProviderId?
 
     private var providers: [ProviderId] {
         appState.enabledProviders.isEmpty
@@ -236,11 +242,19 @@ private struct MenuBarPopoverView: View {
                 } else {
                     ScrollView {
                         VStack(spacing: 4) {
-                            ForEach(providers, id: \.self) { providerRow($0) }
+                            ForEach(providers, id: \.self) { id in
+                                VStack(spacing: 0) {
+                                    providerRow(id)
+                                    if expandedProvider == id {
+                                        providerDetail(id)
+                                            .transition(.opacity.combined(with: .move(edge: .top)))
+                                    }
+                                }
+                            }
                         }
                         .padding(8)
                     }
-                    .frame(maxHeight: 360)
+                    .frame(maxHeight: 400)
                 }
 
                 Divider().overlay(Theme.stroke)
@@ -254,10 +268,18 @@ private struct MenuBarPopoverView: View {
 
     private var header: some View {
         HStack(spacing: 7) {
-            RetroMascot(size: 20)
-            Text("Notchy")
-                .font(.system(.subheadline, design: .rounded).weight(.bold))
-                .foregroundColor(Theme.textPrimary)
+            RetroMascot(size: 20, usagePercent: appState.peakUsagePercent, noData: appState.hasNoData)
+            VStack(alignment: .leading, spacing: 1) {
+                Text("Notchy")
+                    .font(.system(.subheadline, design: .rounded).weight(.bold))
+                    .foregroundColor(Theme.textPrimary)
+                // Cross-provider dollar total — the at-a-glance number.
+                if let summary = appState.dollarSummary {
+                    Text(summary)
+                        .font(.system(size: 10, weight: .medium, design: .rounded))
+                        .foregroundColor(Theme.textSecondary)
+                }
+            }
             Spacer()
             if let incident = appState.worstIncident {
                 Image(systemName: incident.level.glyph)
@@ -282,13 +304,17 @@ private struct MenuBarPopoverView: View {
         Button {
             appState.activeProviderId = id
             if let snap { appState.latestSnapshot = snap }
+            withAnimation(.spring(response: 0.35, dampingFraction: 0.8)) {
+                expandedProvider = (expandedProvider == id) ? nil : id
+            }
         } label: {
             VStack(spacing: 7) {
                 HStack(spacing: 10) {
-                    // Icon bubble, tinted by status
+                    // Icon bubble, tinted by the provider's brand color (identity);
+                    // health stays in the status dot/value on the right.
                     ZStack {
                         RoundedRectangle(cornerRadius: 8, style: .continuous)
-                            .fill(tint.opacity(0.16))
+                            .fill((incident == nil ? id.brandColor : tint).opacity(0.18))
                             .frame(width: 30, height: 30)
                         if let incident {
                             Image(systemName: incident.level.glyph)
@@ -342,6 +368,76 @@ private struct MenuBarPopoverView: View {
             )
         }
         .buttonStyle(.plain)
+        .contextMenu {
+            Button("Pin to notch") {
+                appState.activeProviderId = id
+                if let snap { appState.latestSnapshot = snap }
+            }
+            if let url = id.billingURL {
+                Button("Open \(id.displayName) billing") { NSWorkspace.shared.open(url) }
+            }
+            Button("Copy usage") {
+                let text = "\(id.displayName): \(snap?.shortLabel ?? "no data")"
+                NSPasteboard.general.clearContents()
+                NSPasteboard.general.setString(text, forType: .string)
+            }
+            Button("Refresh \(id.displayName)") {
+                UsageService.shared.refreshNow(providerId: id)
+            }
+            Divider()
+            Button("Move up")   { move(id, by: -1) }
+                .disabled(appState.enabledProviders.firstIndex(of: id) ?? 0 == 0)
+            Button("Move down") { move(id, by: 1) }
+                .disabled((appState.enabledProviders.firstIndex(of: id) ?? 0) >= appState.enabledProviders.count - 1)
+        }
+    }
+
+    /// Reorder a provider within the enabled list (persists via AppState.didSet).
+    private func move(_ id: ProviderId, by delta: Int) {
+        var list = appState.enabledProviders
+        guard let i = list.firstIndex(of: id) else { return }
+        let j = i + delta
+        guard j >= 0, j < list.count else { return }
+        list.swapAt(i, j)
+        withAnimation(.spring(response: 0.3, dampingFraction: 0.85)) {
+            appState.enabledProviders = list
+        }
+    }
+
+    // MARK: Inline detail (sparkline + reset + quick actions)
+
+    @ViewBuilder
+    private func providerDetail(_ id: ProviderId) -> some View {
+        let snap = appState.snapshots[id]
+        let history = UsageHistory.shared.series(for: id)
+        VStack(alignment: .leading, spacing: 8) {
+            Sparkline(values: history, color: id.brandColor)
+                .frame(height: 36)
+
+            HStack(spacing: 10) {
+                if let reset = snap?.primaryWindow.timeToResetString() {
+                    Label(reset, systemImage: "clock")
+                        .font(.system(size: 10, design: .rounded))
+                        .foregroundColor(Theme.textSecondary)
+                }
+                Spacer()
+                if let url = id.billingURL {
+                    iconButton("creditcard", help: "Open billing") { NSWorkspace.shared.open(url) }
+                }
+                iconButton("doc.on.doc", help: "Copy usage") {
+                    NSPasteboard.general.clearContents()
+                    NSPasteboard.general.setString("\(id.displayName): \(snap?.shortLabel ?? "no data")", forType: .string)
+                }
+                iconButton("arrow.clockwise", help: "Refresh") {
+                    UsageService.shared.refreshNow(providerId: id)
+                }
+            }
+        }
+        .padding(.horizontal, 12)
+        .padding(.vertical, 8)
+        .background(RoundedRectangle(cornerRadius: 10).fill(Color.white.opacity(0.04)))
+        .padding(.horizontal, 4)
+        .padding(.bottom, 2)
     }
 
     private func subline(id: ProviderId, snap: ServiceUsageSnapshot?, incident: ServiceIncident?) -> String {

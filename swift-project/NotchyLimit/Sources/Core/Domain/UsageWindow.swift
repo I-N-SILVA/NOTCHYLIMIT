@@ -12,6 +12,14 @@ public enum UsageWindowType: String, Codable, Hashable {
     case balance     // Provider reports a remaining credit balance, not a % (DeepSeek)
 }
 
+/// What a window's `usedAmount` dollar figure means, so the app can aggregate
+/// like-with-like across providers (you can't add "spent" to "credit left").
+public enum AmountKind: String, Codable, Hashable {
+    case none        // usedAmount isn't a comparable dollar figure
+    case spend       // dollars spent this period (OpenRouter, Perplexity, Copilot)
+    case remaining   // dollars of prepaid credit left (DeepSeek)
+}
+
 /// Health classification derived from percent used + reset proximity.
 public enum UsageStatus: String, Codable, Hashable {
     case healthy   // under warning threshold
@@ -46,6 +54,9 @@ public struct UsageWindow: Codable, Hashable {
     /// `.balance` window's "$110.00"). Nil for percentage windows.
     public let label: String?
 
+    /// What `usedAmount` means in dollars, for cross-provider aggregation.
+    public let amountKind: AmountKind
+
     public init(
         type: UsageWindowType,
         percentUsed: Double,
@@ -53,7 +64,8 @@ public struct UsageWindow: Codable, Hashable {
         limitAmount: Double? = nil,
         resetAt: Date? = nil,
         lastUpdated: Date = Date(),
-        label: String? = nil
+        label: String? = nil,
+        amountKind: AmountKind = .none
     ) {
         self.type = type
         self.percentUsed = percentUsed
@@ -62,6 +74,7 @@ public struct UsageWindow: Codable, Hashable {
         self.resetAt = resetAt
         self.lastUpdated = lastUpdated
         self.label = label
+        self.amountKind = amountKind
     }
 
     /// Derive a health classification using the default thresholds.

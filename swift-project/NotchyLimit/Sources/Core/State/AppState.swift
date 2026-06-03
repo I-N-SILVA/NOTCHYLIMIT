@@ -4,6 +4,21 @@ import SwiftUI
 
 /// Single source of truth for UI state. Backed by `@Published` properties so
 /// any SwiftUI view bound to it reacts instantly.
+/// What the menu-bar status item renders.
+public enum MenuBarStyle: String, Codable, CaseIterable {
+    case full      // mascot glyph + value
+    case iconOnly  // mascot glyph only
+    case valueOnly // value text only (%/$/Active)
+
+    public var label: String {
+        switch self {
+        case .full:      return "Icon + value"
+        case .iconOnly:  return "Icon only"
+        case .valueOnly: return "Value only"
+        }
+    }
+}
+
 public final class AppState: ObservableObject {
     /// Set true while loading persisted values so `didSet` observers don't echo back to disk.
     private var isLoading = false
@@ -38,6 +53,11 @@ public final class AppState: ObservableObject {
     @Published public var pollIntervalSeconds: TimeInterval = 300 { didSet { persist() } }
     @Published public var notificationsEnabled: Bool = true { didSet { persist() } }
     @Published public var thresholds: [Double] = [0.25, 0.5, 0.75, 0.9, 1.0] { didSet { persist() } }
+    /// Warn when a balance-reporting provider (DeepSeek, etc.) drops below this
+    /// many units of its currency. 0 disables low-balance alerts.
+    @Published public var lowBalanceThreshold: Double = 5.0 { didSet { persist() } }
+    /// What the menu-bar status item shows.
+    @Published public var menuBarStyle: MenuBarStyle = .full { didSet { persist() } }
     @Published public var launchAtLogin: Bool = false
 
     // MARK: - Convenience (always reflects activeProviderId's snapshot)
@@ -96,6 +116,46 @@ public final class AppState: ObservableObject {
         snapshots.count >= 2
     }
 
+    /// Highest session usage across percentage-reporting providers — drives the
+    /// mascot's mood (calm → worried → alarmed).
+    public var peakUsagePercent: Double {
+        snapshots.values.filter { $0.showsPercentBar }.map { $0.primaryWindow.percentUsed }.max() ?? 0
+    }
+
+    /// True when no provider has reported yet — the mascot dozes.
+    public var hasNoData: Bool { snapshots.isEmpty }
+
+    // MARK: - Cross-provider dollar aggregates
+
+    /// Total dollars spent this period across providers that report spend
+    /// (OpenRouter, Perplexity, Copilot). Currencies are assumed USD.
+    public var totalSpend: Double {
+        snapshots.values.reduce(0) { acc, snap in
+            let w = snap.primaryWindow
+            return acc + (w.amountKind == .spend ? (w.usedAmount ?? 0) : 0)
+        }
+    }
+
+    /// Total prepaid credit remaining across providers that report a balance
+    /// (DeepSeek). Assumed USD.
+    public var totalRemainingCredit: Double {
+        snapshots.values.reduce(0) { acc, snap in
+            let w = snap.primaryWindow
+            return acc + (w.amountKind == .remaining ? (w.usedAmount ?? 0) : 0)
+        }
+    }
+
+    /// Compact one-liner for the menu header, e.g. "$12.30 spent · $8 credit".
+    /// Nil when no provider reports a dollar figure.
+    public var dollarSummary: String? {
+        var parts: [String] = []
+        let spend = totalSpend
+        let credit = totalRemainingCredit
+        if spend > 0  { parts.append(String(format: "$%.2f spent", spend)) }
+        if credit > 0 { parts.append(String(format: "$%@ credit", credit == credit.rounded() ? String(format: "%.0f", credit) : String(format: "%.2f", credit))) }
+        return parts.isEmpty ? nil : parts.joined(separator: " · ")
+    }
+
     /// Active incident for the currently-selected provider, if any.
     public var activeIncident: ServiceIncident? {
         guard let incident = incidents[activeProviderId], incident.level.isActive else { return nil }
@@ -125,6 +185,8 @@ public final class AppState: ObservableObject {
         static let pollInterval     = "notchy.pollIntervalSeconds"
         static let notifications    = "notchy.notificationsEnabled"
         static let thresholds       = "notchy.thresholds"
+        static let lowBalance       = "notchy.lowBalanceThreshold"
+        static let menuBarStyle     = "notchy.menuBarStyle"
     }
 
     private func load() {
@@ -152,6 +214,12 @@ public final class AppState: ObservableObject {
         if let t = d.array(forKey: Key.thresholds) as? [Double], !t.isEmpty {
             thresholds = t
         }
+        if d.object(forKey: Key.lowBalance) != nil {
+            lowBalanceThreshold = d.double(forKey: Key.lowBalance)
+        }
+        if let raw = d.string(forKey: Key.menuBarStyle), let s = MenuBarStyle(rawValue: raw) {
+            menuBarStyle = s
+        }
     }
 
     private func persist() {
@@ -163,5 +231,7 @@ public final class AppState: ObservableObject {
         d.set(pollIntervalSeconds, forKey: Key.pollInterval)
         d.set(notificationsEnabled, forKey: Key.notifications)
         d.set(thresholds, forKey: Key.thresholds)
+        d.set(lowBalanceThreshold, forKey: Key.lowBalance)
+        d.set(menuBarStyle.rawValue, forKey: Key.menuBarStyle)
     }
 }

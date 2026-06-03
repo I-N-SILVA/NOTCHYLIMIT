@@ -173,7 +173,8 @@ final class PerplexityProvider: UsageProvider {
                 usedAmount: spend.used,
                 limitAmount: spend.limit,
                 lastUpdated: Date(),
-                label: label
+                label: label,
+                amountKind: .spend
             )
             return ServiceUsageSnapshot(providerId: .perplexity, primaryWindow: window, capturedAt: Date())
         }

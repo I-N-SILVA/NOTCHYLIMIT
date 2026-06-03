@@ -16,6 +16,7 @@ public final class ProviderRegistry {
         register(PerplexityProvider())
         register(DeepSeekProvider())
         register(ElevenLabsProvider())
+        register(CopilotProvider())
     }
 
     public func register(_ provider: UsageProvider) {

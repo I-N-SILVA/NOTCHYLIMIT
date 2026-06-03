@@ -77,6 +77,31 @@ public final class NotificationService {
         if dirty { saveMark() }
     }
 
+    /// Low-balance alert for balance-reporting providers (DeepSeek, Copilot…).
+    /// Fires once when the numeric balance drops below `threshold`; re-arms when
+    /// the balance climbs back above it (a top-up), so the next drawdown alerts
+    /// again instead of staying silent forever.
+    public func evaluateBalance(snapshot: ServiceUsageSnapshot,
+                                threshold: Double,
+                                providerId: ProviderId) {
+        guard threshold > 0,
+              snapshot.isBalance,
+              let balance = snapshot.primaryWindow.usedAmount else { return }
+
+        let key = "\(providerId.rawValue):balance"
+        let alreadyLow = (mark[key] ?? 0) > 0   // 1 = already alerted for the current low spell
+
+        if balance < threshold && !alreadyLow {
+            mark[key] = 1
+            saveMark()
+            fire(title: "\(providerId.displayName) balance low",
+                 body: "\(snapshot.primaryWindow.label ?? "Balance") left — consider topping up.")
+        } else if balance >= threshold && alreadyLow {
+            mark[key] = 0
+            saveMark()
+        }
+    }
+
     public func send(title: String, body: String) {
         fire(title: title, body: body)
     }

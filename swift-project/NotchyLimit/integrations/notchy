@@ -1,0 +1,35 @@
+#!/usr/bin/env bash
+#
+# notchy — read your live AI usage from the terminal.
+# Proxies Notchy's local API (http://127.0.0.1:9876/usage). Notchy must be running.
+#
+# Usage:
+#   notchy            # pretty table
+#   notchy --json     # raw JSON (for scripts / jq)
+set -euo pipefail
+URL="http://127.0.0.1:9876/usage"
+
+raw() { curl -fsS -m 3 "$URL" 2>/dev/null || { echo "Notchy isn't reachable on 127.0.0.1:9876 — is the app running?" >&2; exit 1; }; }
+
+case "${1:-table}" in
+  --json|json|-j) raw ;;
+  table|"")
+    raw | python3 -c '
+import json, sys
+d = json.load(sys.stdin)
+provs = d.get("providers", {})
+if not provs:
+    print("No providers connected yet."); sys.exit(0)
+w = max(len(p.get("name", "")) for p in provs.values())
+for key in sorted(provs):
+    p = provs[key]
+    name = p.get("name", key).ljust(w)
+    label = p.get("label", "")
+    print("  " + name + "   " + label)
+upd = d.get("updated_at", "")
+if upd:
+    print("\n  updated " + upd)
+'
+    ;;
+  *) echo "usage: notchy [--json]" >&2; exit 1 ;;
+esac

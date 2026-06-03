@@ -11,6 +11,7 @@ public enum ProviderId: String, Codable, Hashable, CaseIterable {
     case perplexity  // Perplexity — real usage via desktop-app token, else connected-only
     case deepseek    // DeepSeek — remaining credit balance (no %)
     case elevenlabs  // ElevenLabs — character usage vs. monthly limit (%)
+    case copilot     // GitHub Copilot — spend this billing period (USD)
 
     public var displayName: String {
         switch self {
@@ -22,6 +23,7 @@ public enum ProviderId: String, Codable, Hashable, CaseIterable {
         case .perplexity:  return "Perplexity"
         case .deepseek:    return "DeepSeek"
         case .elevenlabs:  return "ElevenLabs"
+        case .copilot:     return "GitHub Copilot"
         }
     }
 
@@ -35,13 +37,14 @@ public enum ProviderId: String, Codable, Hashable, CaseIterable {
         case .perplexity:  return "magnifyingglass.circle"
         case .deepseek:    return "water.waves"
         case .elevenlabs:  return "waveform"
+        case .copilot:     return "curlybraces"
         }
     }
 
     /// True if the provider is implemented and selectable in onboarding.
     public var isAvailable: Bool {
         switch self {
-        case .claude, .codex, .openai, .openrouter, .gemini, .perplexity, .deepseek, .elevenlabs:
+        case .claude, .codex, .openai, .openrouter, .gemini, .perplexity, .deepseek, .elevenlabs, .copilot:
             return true
         }
     }
@@ -52,7 +55,7 @@ public enum ProviderId: String, Codable, Hashable, CaseIterable {
     public var reportsQuota: Bool {
         switch self {
         case .claude, .codex, .openai, .openrouter, .gemini, .elevenlabs:  return true
-        case .perplexity, .deepseek:                                       return false
+        case .perplexity, .deepseek, .copilot:                             return false
         }
     }
 
@@ -65,6 +68,22 @@ public enum ProviderId: String, Codable, Hashable, CaseIterable {
         }
     }
 
+    /// The provider's billing / usage dashboard, opened from a provider row's
+    /// quick actions.
+    public var billingURL: URL? {
+        switch self {
+        case .claude:     return URL(string: "https://claude.ai/settings/billing")
+        case .codex:      return URL(string: "https://chatgpt.com/#settings")
+        case .openai:     return URL(string: "https://platform.openai.com/usage")
+        case .openrouter: return URL(string: "https://openrouter.ai/credits")
+        case .gemini:     return URL(string: "https://aistudio.google.com/")
+        case .perplexity: return URL(string: "https://www.perplexity.ai/settings/api")
+        case .deepseek:   return URL(string: "https://platform.deepseek.com/usage")
+        case .elevenlabs: return URL(string: "https://elevenlabs.io/app/usage")
+        case .copilot:    return URL(string: "https://github.com/settings/billing")
+        }
+    }
+
     /// statuspage.io-backed status page, used for outage badges. Nil for
     /// providers whose status page isn't a statuspage.io instance (or unknown).
     public var statusPageBaseURL: URL? {
@@ -73,6 +92,7 @@ public enum ProviderId: String, Codable, Hashable, CaseIterable {
         case .codex, .openai: return URL(string: "https://status.openai.com")
         case .perplexity:  return URL(string: "https://status.perplexity.com")
         case .elevenlabs:  return URL(string: "https://status.elevenlabs.io")
+        case .copilot:     return URL(string: "https://www.githubstatus.com")
         case .openrouter, .gemini, .deepseek:
             return nil   // no known statuspage.io instance
         }

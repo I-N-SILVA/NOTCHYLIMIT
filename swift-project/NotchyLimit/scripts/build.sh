@@ -89,17 +89,21 @@ swiftc \
   "$SOURCES_DIR/Providers/Perplexity/PerplexityProvider.swift" \
   "$SOURCES_DIR/Providers/DeepSeek/DeepSeekProvider.swift" \
   "$SOURCES_DIR/Providers/ElevenLabs/ElevenLabsProvider.swift" \
+  "$SOURCES_DIR/Providers/Copilot/CopilotProvider.swift" \
   "$SOURCES_DIR/Providers/OpenRouter/OpenRouterProvider.swift" \
   "$SOURCES_DIR/Providers/OpenAI/OpenAICredential.swift" \
   "$SOURCES_DIR/Providers/OpenAI/OpenAIEndpoint.swift" \
   "$SOURCES_DIR/Providers/OpenAI/OpenAIProvider.swift" \
   "$SOURCES_DIR/Services/AuthService.swift" \
+  "$SOURCES_DIR/Services/LocalAPIServer.swift" \
+  "$SOURCES_DIR/Services/UsageHistory.swift" \
   "$SOURCES_DIR/Services/IncidentMonitor.swift" \
   "$SOURCES_DIR/Services/NotificationService.swift" \
   "$SOURCES_DIR/Services/UsageCoordinator.swift" \
   "$SOURCES_DIR/Services/UsageService.swift" \
   "$SOURCES_DIR/UI/Theme/Theme.swift" \
   "$SOURCES_DIR/UI/Theme/BrandIcon.swift" \
+  "$SOURCES_DIR/UI/Theme/Sparkline.swift" \
   "$SOURCES_DIR/UI/Theme/GlassBackground.swift" \
   "$SOURCES_DIR/UI/Theme/RetroMascot.swift" \
   "$SOURCES_DIR/UI/Theme/StatusRingView.swift" \

@@ -188,8 +188,10 @@ final class NotchWindowController: NSObject {
             let finalOrigin = ScreenUtils.topCenteredOrigin(forPanelSize: targetSize)
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.12) {
                 NSAnimationContext.runAnimationGroup { ctx in
-                    ctx.duration = 0.30
-                    ctx.timingFunction = CAMediaTimingFunction(name: .easeInEaseOut)
+                    ctx.duration = 0.34
+                    // Springy overshoot (2nd control-point y > 1) so the panel
+                    // "settles" like liquid instead of easing flatly.
+                    ctx.timingFunction = CAMediaTimingFunction(controlPoints: 0.34, 1.40, 0.5, 1.0)
                     self.panel.animator().setFrame(NSRect(origin: finalOrigin, size: targetSize), display: true)
                 }
             }
