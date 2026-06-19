@@ -5,7 +5,7 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](swift-project/NotchyLimit/LICENSE)
 [![macOS 12+](https://img.shields.io/badge/macOS-12.0%2B-blue)](https://www.apple.com/macos/)
 [![Swift 5.9+](https://img.shields.io/badge/Swift-5.9%2B-orange)](https://swift.org)
-[![GitHub stars](https://img.shields.io/github/stars/I-N-SILVA/NOTCHY?style=social)](https://github.com/I-N-SILVA/NOTCHY/stargazers)
+[![GitHub stars](https://img.shields.io/github/stars/I-N-SILVA/NOTCHYLIMIT?style=social)](https://github.com/I-N-SILVA/NOTCHYLIMIT/stargazers)
 [![Sponsor](https://img.shields.io/badge/Sponsor-%E2%9D%A4-ff69b4)](https://github.com/sponsors/I-N-SILVA)
 [![Ko-fi](https://img.shields.io/badge/Ko--fi-Buy%20me%20a%20coffee-FF5E5B?logo=ko-fi&logoColor=white)](https://ko-fi.com/iamnsilva)
 
@@ -82,7 +82,7 @@ The [cask](https://github.com/I-N-SILVA/homebrew-notchy) clears the macOS quaran
 
 ### Option B: Download the release DMG
 
-Grab `NotchyLimit-Installer.dmg` from the [latest release](https://github.com/I-N-SILVA/NOTCHY/releases/latest), open it, and drag **NotchyLimit** to Applications. The build is **unsigned** (no Apple Developer ID), so on first launch: **right-click the app → Open → Open**, or run `xattr -dr com.apple.quarantine /Applications/NotchyLimit.app`.
+Grab `NotchyLimit-Installer.dmg` from the [latest release](https://github.com/I-N-SILVA/NOTCHYLIMIT/releases/latest), open it, and drag **NotchyLimit** to Applications. The build is **unsigned** (no Apple Developer ID), so on first launch: **right-click the app → Open → Open**, or run `xattr -dr com.apple.quarantine /Applications/NotchyLimit.app`.
 
 <p align="center">
   <img src="swift-project/NotchyLimit/docs/install.gif" alt="First launch: right-click → Open → Open" width="560" />
@@ -92,7 +92,7 @@ Grab `NotchyLimit-Installer.dmg` from the [latest release](https://github.com/I-
 
 ```bash
 xcode-select --install
-git clone https://github.com/I-N-SILVA/NOTCHY.git
+git clone https://github.com/I-N-SILVA/NOTCHYLIMIT.git
 cd NOTCHY/swift-project/NotchyLimit
 bash scripts/build.sh && open build/NotchyLimit.app
 ```
@@ -114,7 +114,7 @@ Claude, Codex, and Gemini need **no key** — Notchy reads the login the officia
 | **Gemini** | Sign in with the `gemini` CLI (Code Assist). Reads `~/.gemini/oauth_creds.json`. *(Or paste a Gemini API key for a "Connected" status.)* |
 | **OpenAI / OpenRouter / DeepSeek / ElevenLabs / Perplexity** | Paste an API key in onboarding. |
 
-> **Note:** these use **undocumented/internal** provider endpoints that may change. If one breaks, open an [Issue](https://github.com/I-N-SILVA/NOTCHY/issues).
+> **Note:** these use **undocumented/internal** provider endpoints that may change. If one breaks, open an [Issue](https://github.com/I-N-SILVA/NOTCHYLIMIT/issues).
 
 ---
 
@@ -220,17 +220,17 @@ Not in a position to sponsor? **Star the repo** ⭐ — it's free and genuinely 
 
 ## Community
 
-- 🐛 [Report a bug](https://github.com/I-N-SILVA/NOTCHY/issues/new?template=bug_report.md)
-- 💡 [Request a feature](https://github.com/I-N-SILVA/NOTCHY/issues/new?template=feature_request.md)
-- 💬 [Discussions](https://github.com/I-N-SILVA/NOTCHY/discussions) — usage questions, ideas, show-and-tell
+- 🐛 [Report a bug](https://github.com/I-N-SILVA/NOTCHYLIMIT/issues/new?template=bug_report.md)
+- 💡 [Request a feature](https://github.com/I-N-SILVA/NOTCHYLIMIT/issues/new?template=feature_request.md)
+- 💬 [Discussions](https://github.com/I-N-SILVA/NOTCHYLIMIT/discussions) — usage questions, ideas, show-and-tell
 - 🐦 Follow [@iansilva](https://github.com/I-N-SILVA) for updates
 
 ---
 
 ## Star history
 
-<a href="https://star-history.com/#I-N-SILVA/NOTCHY&Date">
-  <img src="https://api.star-history.com/svg?repos=I-N-SILVA/NOTCHY&type=Date" alt="Star history chart" width="600" />
+<a href="https://star-history.com/#I-N-SILVA/NOTCHYLIMIT&Date">
+  <img src="https://api.star-history.com/svg?repos=I-N-SILVA/NOTCHYLIMIT&type=Date" alt="Star history chart" width="600" />
 </a>
 
 ---
