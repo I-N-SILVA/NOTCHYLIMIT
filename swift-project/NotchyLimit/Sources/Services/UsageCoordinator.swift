@@ -61,6 +61,7 @@ public final class UsageCoordinator {
                 }
                 self.handleNotifications(for: snapshot)
                 UsageHistory.shared.record(snapshot)
+                UsageForecaster.shared.record(snapshot)
                 LocalAPIServer.shared.update(UsageExporter.json(from: self.appState.snapshots))
             }
             .store(in: &cancellables)
@@ -147,5 +148,12 @@ public final class UsageCoordinator {
         notifications.evaluateBalance(snapshot: snapshot,
                                       threshold: appState.lowBalanceThreshold,
                                       providerId: snapshot.providerId)
+        // Trajectory alert: only for windows that actually reset, and computed
+        // from the trail recorded *before* this snapshot is appended below.
+        if snapshot.primaryWindow.resetAt != nil {
+            let forecast = UsageForecaster.shared.forecast(for: snapshot.providerId,
+                                                           snapshot: snapshot)
+            notifications.evaluatePace(forecast: forecast, providerId: snapshot.providerId)
+        }
     }
 }

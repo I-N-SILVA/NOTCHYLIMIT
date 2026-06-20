@@ -1,7 +1,8 @@
 import SwiftUI
 
-/// Simple pace indicator. Today this is a derived label off session pct.
-/// Later it can compare today's usage to a rolling average.
+/// Pace indicator. Prefers a real burn-rate forecast ("limit in ~3h 20m") when
+/// the trend supports one, falls back to a status-derived label, and flags a
+/// stale reading rather than presenting an old number as current.
 struct PaceRow: View {
     @ObservedObject var appState: AppState
 
@@ -20,7 +21,13 @@ struct PaceRow: View {
     private var paceLabel: String {
         if appState.activeIsBalance { return "Credit balance — usage % not provided." }
         if appState.activeIsStatusOnly { return "Connected — no usage data exposed." }
+        // A stale reading takes priority: don't pass off an old number as live.
+        if appState.isActiveStale, let age = appState.activeSnapshotAgeString {
+            return "Last updated \(age) ago — reconnecting…"
+        }
         if appState.isAtSessionLimit { return limitLabel }
+        // Prefer a real forecast when the trend gives us one.
+        if let forecast = appState.sessionForecast { return forecast.paceLabel }
         switch appState.sessionStatus {
         case .critical: return "Heavy usage — consider pausing."
         case .warning:  return "Slightly above pace."
@@ -41,6 +48,7 @@ struct PaceRow: View {
     private var paceIcon: String {
         if appState.activeIsBalance { return "creditcard.fill" }
         if appState.activeIsStatusOnly { return "checkmark.circle.fill" }
+        if appState.isActiveStale { return "clock.arrow.circlepath" }
         switch appState.sessionStatus {
         case .critical: return "exclamationmark.triangle.fill"
         case .warning:  return "hare.fill"

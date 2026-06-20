@@ -110,6 +110,30 @@ public final class NotificationService {
         fire(title: "Notchy Limit", body: "Notifications are working.")
     }
 
+    /// Trajectory-based alert: fires once when the forecast says you are on pace
+    /// to exhaust the window *before* it resets, and re-arms only after you fall
+    /// back off that pace. This complements the fixed 25/50/75/90% thresholds
+    /// with a "you won't make it to reset at this rate" heads-up.
+    ///
+    /// Only meaningful for windows that actually reset (session/weekly), so the
+    /// caller should pass a forecast computed against a window with a `resetAt`.
+    public func evaluatePace(forecast: UsageForecast?, providerId: ProviderId) {
+        let key = "\(providerId.rawValue):pace"
+        let armed = (mark[key] ?? 0) > 0
+        // On pace to exhaust = we have a forecast and the window will NOT reset first.
+        let onPaceToExhaust = forecast.map { !$0.willResetFirst } ?? false
+
+        if onPaceToExhaust, let f = forecast, !armed {
+            mark[key] = 1
+            saveMark()
+            fire(title: "\(providerId.displayName) on pace to run out",
+                 body: "At this rate you'll hit the limit in ~\(f.remainingShort), before it resets. Ease off to make it through.")
+        } else if !onPaceToExhaust && armed {
+            mark[key] = 0
+            saveMark()
+        }
+    }
+
     // MARK: - Persistence
 
     private func saveMark() {

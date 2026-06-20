@@ -102,6 +102,42 @@ public final class AppState: ObservableObject {
         latestSnapshot?.primaryWindow.timeToResetShortString()
     }
 
+    // MARK: - Forecast (burn-rate → time to limit)
+
+    /// Projection of the active provider's usage to its limit, or nil when there
+    /// isn't enough trend yet (or usage is flat/falling). Drives the pace row and
+    /// the trajectory alert.
+    public var sessionForecast: UsageForecast? {
+        UsageForecaster.shared.forecast(for: activeProviderId, snapshot: latestSnapshot)
+    }
+
+    // MARK: - Staleness
+
+    /// Age of the active provider's latest reading, or nil if none yet.
+    public var activeSnapshotAge: TimeInterval? {
+        guard let at = latestSnapshot?.capturedAt else { return nil }
+        return max(0, Date().timeIntervalSince(at))
+    }
+
+    /// True when the active reading is older than 2.5× the poll interval, i.e. a
+    /// refresh has been missed and the displayed number may be out of date. The
+    /// UI surfaces this instead of presenting a stale value as current.
+    public var isActiveStale: Bool {
+        guard let age = activeSnapshotAge else { return false }
+        return age > pollIntervalSeconds * 2.5
+    }
+
+    /// Compact "12m"/"2h"/"3d" string for how old the active reading is.
+    public var activeSnapshotAgeString: String? {
+        guard let age = activeSnapshotAge else { return nil }
+        let minutes = Int(age / 60)
+        if minutes < 1 { return "just now" }
+        if minutes < 60 { return "\(minutes)m" }
+        let hours = minutes / 60
+        if hours < 24 { return "\(hours)h" }
+        return "\(hours / 24)d"
+    }
+
     /// Worst status across ALL enabled providers — used for global pill colour.
     public var combinedStatus: UsageStatus {
         let statuses = snapshots.values.map { $0.combinedStatus }

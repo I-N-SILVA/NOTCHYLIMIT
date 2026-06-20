@@ -264,3 +264,162 @@ final class NotificationServiceEvaluateTests: XCTestCase {
         XCTAssertNil(store.get(account: "roundtrip"))
     }
 }
+
+// MARK: - Burn-rate forecast tests
+
+final class UsageForecastTests: XCTestCase {
+
+    private let now = Date(timeIntervalSince1970: 1_000_000)
+
+    private func window(_ pct: Double, resetIn: TimeInterval? = nil) -> UsageWindow {
+        UsageWindow(type: .session, percentUsed: pct,
+                    resetAt: resetIn.map { now.addingTimeInterval($0) })
+    }
+
+    // Rising usage projects a finite ETA; reset is far off so willResetFirst is false.
+    func test_risingUsage_projectsFiniteETA() {
+        let samples = [
+            UsageSample(at: now.addingTimeInterval(-600), percent: 0.10),
+            UsageSample(at: now, percent: 0.20),
+        ]
+        let f = UsageForecaster.project(samples: samples,
+                                        current: window(0.20, resetIn: 36_000),
+                                        now: now)
+        XCTAssertNotNil(f)
+        // remaining 0.8 at 0.10 per 600s → 4800s.
+        XCTAssertEqual(f!.secondsToLimit, 4800, accuracy: 60)
+        XCTAssertFalse(f!.willResetFirst)
+    }
+
+    // Slow rise but the window resets long before the limit → on track.
+    func test_resetsBeforeLimit_setsWillResetFirst() {
+        let samples = [
+            UsageSample(at: now.addingTimeInterval(-3600), percent: 0.50),
+            UsageSample(at: now, percent: 0.55),
+        ]
+        let f = UsageForecaster.project(samples: samples,
+                                        current: window(0.55, resetIn: 3600),
+                                        now: now)
+        XCTAssertNotNil(f)
+        XCTAssertTrue(f!.willResetFirst)
+    }
+
+    func test_flatUsage_returnsNil() {
+        let samples = [
+            UsageSample(at: now.addingTimeInterval(-600), percent: 0.40),
+            UsageSample(at: now, percent: 0.40),
+        ]
+        XCTAssertNil(UsageForecaster.project(samples: samples, current: window(0.40), now: now))
+    }
+
+    func test_fallingUsage_returnsNil() {
+        let samples = [
+            UsageSample(at: now.addingTimeInterval(-600), percent: 0.40),
+            UsageSample(at: now, percent: 0.20),
+        ]
+        XCTAssertNil(UsageForecaster.project(samples: samples, current: window(0.20), now: now))
+    }
+
+    func test_alreadyAtLimit_returnsNil() {
+        let samples = [
+            UsageSample(at: now.addingTimeInterval(-600), percent: 0.90),
+            UsageSample(at: now, percent: 1.0),
+        ]
+        XCTAssertNil(UsageForecaster.project(samples: samples, current: window(1.0), now: now))
+    }
+
+    func test_tooFewSamples_returnsNil() {
+        XCTAssertNil(UsageForecaster.project(samples: [UsageSample(at: now, percent: 0.2)],
+                                             current: window(0.2), now: now))
+    }
+
+    // Less than 60s between first and last sample is too little signal.
+    func test_tooShortElapsed_returnsNil() {
+        let samples = [
+            UsageSample(at: now.addingTimeInterval(-30), percent: 0.10),
+            UsageSample(at: now, percent: 0.20),
+        ]
+        XCTAssertNil(UsageForecaster.project(samples: samples, current: window(0.20), now: now))
+    }
+}
+
+// MARK: - Staleness tests
+
+final class StaleDetectionTests: XCTestCase {
+
+    private func appState(pollInterval: TimeInterval = 300) -> AppState {
+        let app = AppState()
+        app.pollIntervalSeconds = pollInterval
+        return app
+    }
+
+    private func snapshot(ageSeconds: TimeInterval) -> ServiceUsageSnapshot {
+        ServiceUsageSnapshot(
+            providerId: .claude,
+            primaryWindow: UsageWindow(type: .session, percentUsed: 0.3),
+            capturedAt: Date().addingTimeInterval(-ageSeconds)
+        )
+    }
+
+    func test_freshSnapshot_isNotStale() {
+        let app = appState()
+        app.latestSnapshot = snapshot(ageSeconds: 0)
+        XCTAssertFalse(app.isActiveStale)
+    }
+
+    func test_oldSnapshot_isStale() {
+        let app = appState(pollInterval: 300)   // stale threshold = 750s
+        app.latestSnapshot = snapshot(ageSeconds: 1000)
+        XCTAssertTrue(app.isActiveStale)
+    }
+
+    func test_noSnapshot_isNotStale() {
+        XCTAssertFalse(appState().isActiveStale)
+    }
+}
+
+// MARK: - Pace (trajectory) alert tests
+
+final class NotificationServicePaceTests: XCTestCase {
+
+    private let defaultsKey = "com.notchylimit.NotificationService.highWaterMark"
+
+    override func setUp() {
+        super.setUp()
+        UserDefaults.standard.removeObject(forKey: defaultsKey)
+    }
+
+    private func mark() -> [String: Double] {
+        UserDefaults.standard.dictionary(forKey: defaultsKey) as? [String: Double] ?? [:]
+    }
+
+    private func forecast(willResetFirst: Bool) -> UsageForecast {
+        UsageForecast(ratePerHour: 0.1, secondsToLimit: 3600,
+                      eta: Date().addingTimeInterval(3600), willResetFirst: willResetFirst)
+    }
+
+    func test_onPaceToExhaust_armsOnce() {
+        NotificationService.shared.evaluatePace(forecast: forecast(willResetFirst: false),
+                                                providerId: .claude)
+        XCTAssertEqual(mark()["claude:pace"], 1)
+    }
+
+    func test_onTrack_doesNotArm() {
+        NotificationService.shared.evaluatePace(forecast: forecast(willResetFirst: true),
+                                                providerId: .claude)
+        XCTAssertNil(mark()["claude:pace"])
+    }
+
+    func test_disarmsWhenBackOnTrack() {
+        let service = NotificationService.shared
+        service.evaluatePace(forecast: forecast(willResetFirst: false), providerId: .claude)
+        XCTAssertEqual(mark()["claude:pace"], 1)
+        service.evaluatePace(forecast: forecast(willResetFirst: true), providerId: .claude)
+        XCTAssertEqual(mark()["claude:pace"], 0)
+    }
+
+    func test_nilForecast_doesNotArm() {
+        NotificationService.shared.evaluatePace(forecast: nil, providerId: .codex)
+        XCTAssertNil(mark()["codex:pace"])
+    }
+}

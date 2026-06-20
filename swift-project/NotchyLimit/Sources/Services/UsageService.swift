@@ -83,9 +83,12 @@ public final class UsageService {
 
     private func backoffInterval(for providerId: ProviderId) -> TimeInterval {
         let errs = consecutiveErrors[providerId] ?? 0
-        guard errs > 0 else { return intervalSeconds }
-        let backoff = intervalSeconds * pow(2.0, Double(min(errs, 6)))
-        return min(backoff, 3600)
+        let base = errs > 0
+            ? min(intervalSeconds * pow(2.0, Double(min(errs, 6))), 3600)
+            : intervalSeconds
+        // Ease off on battery / Low Power Mode to be a good menu-bar citizen,
+        // and to avoid needless hits on the providers' internal endpoints.
+        return min(base * PowerState.pollMultiplier(), 3600)
     }
 
     private func fetchOnce(providerId: ProviderId) async {
