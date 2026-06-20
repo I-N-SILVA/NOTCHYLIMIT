@@ -423,3 +423,98 @@ final class NotificationServicePaceTests: XCTestCase {
         XCTAssertNil(mark()["codex:pace"])
     }
 }
+
+// MARK: - Provider decode/mapping fixtures (schema-drift guards)
+//
+// These decode a real-shaped JSON fixture per provider and run it through the
+// provider's own mapper, so a future change to an undocumented endpoint's
+// response shape fails the build instead of silently showing a wrong number.
+
+final class OpenRouterMappingTests: XCTestCase {
+
+    func test_credits_mapToPercentage() throws {
+        let json = #"{ "data": { "total_credits": 100.0, "total_usage": 25.0 } }"#.data(using: .utf8)!
+        let dto = try JSONDecoder().decode(OpenRouterCreditsDTO.self, from: json)
+        let snap = OpenRouterUsageMapper.snapshot(dto)
+        XCTAssertEqual(snap.providerId, .openrouter)
+        XCTAssertTrue(snap.showsPercentBar)
+        XCTAssertEqual(snap.primaryWindow.percentUsed, 0.25, accuracy: 0.0001)
+        XCTAssertEqual(snap.primaryWindow.usedAmount, 25)
+        XCTAssertEqual(snap.primaryWindow.limitAmount, 100)
+    }
+
+    // Free tier (no purchased credits) → status-only, never a fake 0%.
+    func test_zeroCredits_isStatusOnly() throws {
+        let json = #"{ "data": { "total_credits": 0, "total_usage": 0 } }"#.data(using: .utf8)!
+        let dto = try JSONDecoder().decode(OpenRouterCreditsDTO.self, from: json)
+        let snap = OpenRouterUsageMapper.snapshot(dto)
+        XCTAssertTrue(snap.isStatusOnly)
+        XCTAssertFalse(snap.showsPercentBar)
+    }
+
+    func test_missingFields_decodeThenStatusOnly() throws {
+        let json = #"{ "data": {} }"#.data(using: .utf8)!
+        let dto = try JSONDecoder().decode(OpenRouterCreditsDTO.self, from: json)
+        XCTAssertTrue(OpenRouterUsageMapper.snapshot(dto).isStatusOnly)
+    }
+}
+
+final class ElevenLabsMappingTests: XCTestCase {
+
+    func test_subscription_mapsToPercentageWithReset() throws {
+        let json = #"{ "character_count": 5000, "character_limit": 10000, "next_character_count_reset_unix": 9999999999 }"#.data(using: .utf8)!
+        let dto = try JSONDecoder().decode(ElevenLabsSubscriptionDTO.self, from: json)
+        let snap = try ElevenLabsUsageMapper.snapshot(dto)
+        XCTAssertEqual(snap.providerId, .elevenlabs)
+        XCTAssertEqual(snap.primaryWindow.percentUsed, 0.5, accuracy: 0.0001)
+        XCTAssertNotNil(snap.primaryWindow.resetAt)
+    }
+
+    func test_zeroLimit_throwsDecoding() throws {
+        let json = #"{ "character_count": 100, "character_limit": 0 }"#.data(using: .utf8)!
+        let dto = try JSONDecoder().decode(ElevenLabsSubscriptionDTO.self, from: json)
+        XCTAssertThrowsError(try ElevenLabsUsageMapper.snapshot(dto)) { error in
+            guard case ProviderError.decoding = error else {
+                return XCTFail("Expected ProviderError.decoding, got \(error)")
+            }
+        }
+    }
+
+    func test_missingLimit_throwsDecoding() throws {
+        let json = #"{ "character_count": 100 }"#.data(using: .utf8)!
+        let dto = try JSONDecoder().decode(ElevenLabsSubscriptionDTO.self, from: json)
+        XCTAssertThrowsError(try ElevenLabsUsageMapper.snapshot(dto))
+    }
+}
+
+final class DeepSeekMappingTests: XCTestCase {
+
+    func test_balance_mapsToBalanceSnapshot() throws {
+        let json = #"""
+        { "is_available": true,
+          "balance_infos": [ { "currency": "USD", "total_balance": "110.00",
+                               "granted_balance": "10.00", "topped_up_balance": "100.00" } ] }
+        """#.data(using: .utf8)!
+        let dto = try JSONDecoder().decode(DeepSeekBalanceDTO.self, from: json)
+        let snap = DeepSeekUsageMapper.snapshot(dto)
+        XCTAssertEqual(snap.providerId, .deepseek)
+        XCTAssertTrue(snap.isBalance)
+        XCTAssertEqual(snap.primaryWindow.usedAmount, 110, accuracy: 0.001)
+        XCTAssertEqual(snap.primaryWindow.amountKind, .remaining)
+        XCTAssertTrue(snap.shortLabel.hasPrefix("$110"))
+    }
+
+    func test_cnyCurrency_usesYenSymbol() throws {
+        let json = #"{ "balance_infos": [ { "currency": "CNY", "total_balance": "42" } ] }"#.data(using: .utf8)!
+        let dto = try JSONDecoder().decode(DeepSeekBalanceDTO.self, from: json)
+        XCTAssertTrue(DeepSeekUsageMapper.snapshot(dto).shortLabel.hasPrefix("¥"))
+    }
+
+    func test_emptyBalances_doesNotCrash() throws {
+        let json = #"{ "is_available": false, "balance_infos": [] }"#.data(using: .utf8)!
+        let dto = try JSONDecoder().decode(DeepSeekBalanceDTO.self, from: json)
+        let snap = DeepSeekUsageMapper.snapshot(dto)
+        XCTAssertTrue(snap.isBalance)
+        XCTAssertEqual(snap.primaryWindow.usedAmount, 0)
+    }
+}
