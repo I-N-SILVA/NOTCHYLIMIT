@@ -57,74 +57,104 @@ echo "  NOTE: Mode A produces an UNSIGNED binary for local use only."
 echo "  Do not distribute this build. For a distributable binary, use"
 echo "  Mode B (USE_XCODEBUILD=1) with a Developer ID and scripts/sign_and_notarize.sh."
 echo ""
-echo "==> Compiling $APP_NAME with swiftc (no Xcode required)"
-swiftc \
-  -sdk "$SDK" \
-  -target arm64-apple-macosx12.0 \
-  -O \
-  -module-name "$APP_NAME" \
-  -o "$APP_CONTENTS/MacOS/$APP_NAME" \
-  "$SOURCES_DIR/App/NotchyLimitApp.swift" \
-  "$SOURCES_DIR/App/AppDelegate.swift" \
-  "$SOURCES_DIR/Core/Domain/ProviderId.swift" \
-  "$SOURCES_DIR/Core/Domain/Status.swift" \
-  "$SOURCES_DIR/Core/Domain/UsageWindow.swift" \
-  "$SOURCES_DIR/Core/Domain/ServiceUsageSnapshot.swift" \
-  "$SOURCES_DIR/Core/State/AppState.swift" \
-  "$SOURCES_DIR/Core/State/NotchState.swift" \
-  "$SOURCES_DIR/Platform/KeychainStore.swift" \
-  "$SOURCES_DIR/Platform/SQLiteReader.swift" \
-  "$SOURCES_DIR/Platform/NotchDetector.swift" \
-  "$SOURCES_DIR/Platform/ScreenUtils.swift" \
-  "$SOURCES_DIR/Platform/DisplayMode.swift" \
-  "$SOURCES_DIR/Providers/UsageProvider.swift" \
-  "$SOURCES_DIR/Providers/ProviderRegistry.swift" \
-  "$SOURCES_DIR/Providers/Claude/ClaudeCredential.swift" \
-  "$SOURCES_DIR/Providers/Claude/ClaudeEndpoint.swift" \
-  "$SOURCES_DIR/Providers/Claude/ClaudeUsageDTO.swift" \
-  "$SOURCES_DIR/Providers/Claude/ClaudeOAuthCredential.swift" \
-  "$SOURCES_DIR/Providers/Claude/ClaudeProvider.swift" \
-  "$SOURCES_DIR/Providers/Codex/CodexProvider.swift" \
-  "$SOURCES_DIR/Providers/Gemini/GeminiProvider.swift" \
-  "$SOURCES_DIR/Providers/Perplexity/PerplexityProvider.swift" \
-  "$SOURCES_DIR/Providers/DeepSeek/DeepSeekProvider.swift" \
-  "$SOURCES_DIR/Providers/ElevenLabs/ElevenLabsProvider.swift" \
-  "$SOURCES_DIR/Providers/Copilot/CopilotProvider.swift" \
-  "$SOURCES_DIR/Providers/OpenRouter/OpenRouterProvider.swift" \
-  "$SOURCES_DIR/Providers/OpenAI/OpenAICredential.swift" \
-  "$SOURCES_DIR/Providers/OpenAI/OpenAIEndpoint.swift" \
-  "$SOURCES_DIR/Providers/OpenAI/OpenAIProvider.swift" \
-  "$SOURCES_DIR/Services/AuthService.swift" \
-  "$SOURCES_DIR/Services/LocalAPIServer.swift" \
-  "$SOURCES_DIR/Services/UsageHistory.swift" \
-  "$SOURCES_DIR/Services/IncidentMonitor.swift" \
-  "$SOURCES_DIR/Services/NotificationService.swift" \
-  "$SOURCES_DIR/Services/UsageCoordinator.swift" \
-  "$SOURCES_DIR/Services/UsageService.swift" \
-  "$SOURCES_DIR/UI/Theme/Theme.swift" \
-  "$SOURCES_DIR/UI/Theme/BrandIcon.swift" \
-  "$SOURCES_DIR/UI/Theme/Sparkline.swift" \
-  "$SOURCES_DIR/UI/Theme/GlassBackground.swift" \
-  "$SOURCES_DIR/UI/Theme/RetroMascot.swift" \
-  "$SOURCES_DIR/UI/Theme/StatusRingView.swift" \
-  "$SOURCES_DIR/UI/Compact/StatusDot.swift" \
-  "$SOURCES_DIR/UI/Compact/CompactProgressBar.swift" \
-  "$SOURCES_DIR/UI/Compact/CompactView.swift" \
-  "$SOURCES_DIR/UI/Compact/ConstellationView.swift" \
-  "$SOURCES_DIR/UI/MenuBar/MenuBarController.swift" \
-  "$SOURCES_DIR/UI/NotchWindowController.swift" \
-  "$SOURCES_DIR/UI/Expanded/HeaderRow.swift" \
-  "$SOURCES_DIR/UI/Expanded/SessionCard.swift" \
-  "$SOURCES_DIR/UI/Expanded/PaceRow.swift" \
-  "$SOURCES_DIR/UI/Expanded/WeeklyCard.swift" \
-  "$SOURCES_DIR/UI/Expanded/ActionsRow.swift" \
-  "$SOURCES_DIR/UI/Expanded/FooterRow.swift" \
-  "$SOURCES_DIR/UI/Expanded/ProviderSwitcherRow.swift" \
-  "$SOURCES_DIR/UI/Expanded/ExpandedPanelView.swift" \
-  "$SOURCES_DIR/UI/Onboarding/OnboardingView.swift" \
-  "$SOURCES_DIR/UI/Settings/SettingsView.swift" \
-  "$SOURCES_DIR/UI/Diagnostics/DiagnosticsView.swift" \
+# Architectures to build. Default: universal (Apple Silicon + Intel) so the
+# release DMG runs everywhere. Set UNIVERSAL=0 for a faster, arm64-only dev build.
+DEPLOY_TARGET="12.0"
+if [[ "${UNIVERSAL:-1}" == "1" ]]; then
+  ARCHS=(arm64 x86_64)
+else
+  ARCHS=(arm64)
+fi
+
+# Source list — shared across the per-arch compiles below.
+SOURCES=(
+  "$SOURCES_DIR/App/NotchyLimitApp.swift"
+  "$SOURCES_DIR/App/AppDelegate.swift"
+  "$SOURCES_DIR/Core/Domain/ProviderId.swift"
+  "$SOURCES_DIR/Core/Domain/Status.swift"
+  "$SOURCES_DIR/Core/Domain/UsageWindow.swift"
+  "$SOURCES_DIR/Core/Domain/ServiceUsageSnapshot.swift"
+  "$SOURCES_DIR/Core/State/AppState.swift"
+  "$SOURCES_DIR/Core/State/NotchState.swift"
+  "$SOURCES_DIR/Platform/KeychainStore.swift"
+  "$SOURCES_DIR/Platform/SQLiteReader.swift"
+  "$SOURCES_DIR/Platform/NotchDetector.swift"
+  "$SOURCES_DIR/Platform/ScreenUtils.swift"
+  "$SOURCES_DIR/Platform/DisplayMode.swift"
+  "$SOURCES_DIR/Providers/UsageProvider.swift"
+  "$SOURCES_DIR/Providers/ProviderRegistry.swift"
+  "$SOURCES_DIR/Providers/Claude/ClaudeCredential.swift"
+  "$SOURCES_DIR/Providers/Claude/ClaudeEndpoint.swift"
+  "$SOURCES_DIR/Providers/Claude/ClaudeUsageDTO.swift"
+  "$SOURCES_DIR/Providers/Claude/ClaudeOAuthCredential.swift"
+  "$SOURCES_DIR/Providers/Claude/ClaudeProvider.swift"
+  "$SOURCES_DIR/Providers/Codex/CodexProvider.swift"
+  "$SOURCES_DIR/Providers/Gemini/GeminiProvider.swift"
+  "$SOURCES_DIR/Providers/Perplexity/PerplexityProvider.swift"
+  "$SOURCES_DIR/Providers/DeepSeek/DeepSeekProvider.swift"
+  "$SOURCES_DIR/Providers/ElevenLabs/ElevenLabsProvider.swift"
+  "$SOURCES_DIR/Providers/Copilot/CopilotProvider.swift"
+  "$SOURCES_DIR/Providers/OpenRouter/OpenRouterProvider.swift"
+  "$SOURCES_DIR/Providers/OpenAI/OpenAICredential.swift"
+  "$SOURCES_DIR/Providers/OpenAI/OpenAIEndpoint.swift"
+  "$SOURCES_DIR/Providers/OpenAI/OpenAIProvider.swift"
+  "$SOURCES_DIR/Services/AuthService.swift"
+  "$SOURCES_DIR/Services/LocalAPIServer.swift"
+  "$SOURCES_DIR/Services/UsageHistory.swift"
+  "$SOURCES_DIR/Services/IncidentMonitor.swift"
+  "$SOURCES_DIR/Services/NotificationService.swift"
+  "$SOURCES_DIR/Services/UsageCoordinator.swift"
+  "$SOURCES_DIR/Services/UsageService.swift"
+  "$SOURCES_DIR/UI/Theme/Theme.swift"
+  "$SOURCES_DIR/UI/Theme/BrandIcon.swift"
+  "$SOURCES_DIR/UI/Theme/Sparkline.swift"
+  "$SOURCES_DIR/UI/Theme/GlassBackground.swift"
+  "$SOURCES_DIR/UI/Theme/RetroMascot.swift"
+  "$SOURCES_DIR/UI/Theme/StatusRingView.swift"
+  "$SOURCES_DIR/UI/Compact/StatusDot.swift"
+  "$SOURCES_DIR/UI/Compact/CompactProgressBar.swift"
+  "$SOURCES_DIR/UI/Compact/CompactView.swift"
+  "$SOURCES_DIR/UI/Compact/ConstellationView.swift"
+  "$SOURCES_DIR/UI/MenuBar/MenuBarController.swift"
+  "$SOURCES_DIR/UI/NotchWindowController.swift"
+  "$SOURCES_DIR/UI/Expanded/HeaderRow.swift"
+  "$SOURCES_DIR/UI/Expanded/SessionCard.swift"
+  "$SOURCES_DIR/UI/Expanded/PaceRow.swift"
+  "$SOURCES_DIR/UI/Expanded/WeeklyCard.swift"
+  "$SOURCES_DIR/UI/Expanded/ActionsRow.swift"
+  "$SOURCES_DIR/UI/Expanded/FooterRow.swift"
+  "$SOURCES_DIR/UI/Expanded/ProviderSwitcherRow.swift"
+  "$SOURCES_DIR/UI/Expanded/ExpandedPanelView.swift"
+  "$SOURCES_DIR/UI/Onboarding/OnboardingView.swift"
+  "$SOURCES_DIR/UI/Settings/SettingsView.swift"
+  "$SOURCES_DIR/UI/Diagnostics/DiagnosticsView.swift"
   "$SOURCES_DIR/UI/NotificationBanner.swift"
+)
+
+echo "==> Compiling $APP_NAME with swiftc (no Xcode required) — archs: ${ARCHS[*]}"
+SLICES=()
+for ARCH in "${ARCHS[@]}"; do
+  SLICE="$BUILD_DIR/$APP_NAME-$ARCH"
+  echo "    -> $ARCH"
+  swiftc \
+    -sdk "$SDK" \
+    -target "$ARCH-apple-macosx$DEPLOY_TARGET" \
+    -O \
+    -module-name "$APP_NAME" \
+    -o "$SLICE" \
+    "${SOURCES[@]}"
+  SLICES+=("$SLICE")
+done
+
+# Combine per-arch slices into one universal binary (or copy the single slice).
+if [[ "${#SLICES[@]}" -gt 1 ]]; then
+  echo "==> Creating universal binary (lipo)"
+  lipo -create "${SLICES[@]}" -output "$APP_CONTENTS/MacOS/$APP_NAME"
+else
+  cp "${SLICES[0]}" "$APP_CONTENTS/MacOS/$APP_NAME"
+fi
+rm -f "${SLICES[@]}"
+echo "    archs: $(lipo -archs "$APP_CONTENTS/MacOS/$APP_NAME" 2>/dev/null || echo "unknown")"
 
 echo "==> Assembling .app bundle"
 
