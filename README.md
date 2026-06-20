@@ -62,11 +62,11 @@ NOTCHY is a free, open-source macOS utility that turns the MacBook hardware notc
 | | Minimum |
 |---|---|
 | macOS | 12.0 Monterey |
-| Chip | Apple Silicon (arm64) |
+| Chip | Apple Silicon or Intel (universal binary) |
 | Xcode CLT | Any version with Swift 5.9+ |
 | Xcode (full) | Optional, only needed for Mode B |
 
-> **Intel Mac:** Change `-target arm64-apple-macosx12.0` to `-target x86_64-apple-macosx12.0` in `scripts/build.sh`.
+> `build.sh` produces a **universal binary** (arm64 + x86_64) by default, so it runs on both Apple Silicon and Intel Macs. For a faster Apple-Silicon-only dev build, run `UNIVERSAL=0 bash scripts/build.sh`.
 
 ---
 
