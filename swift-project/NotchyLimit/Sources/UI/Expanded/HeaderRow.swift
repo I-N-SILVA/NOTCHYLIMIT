@@ -26,7 +26,10 @@ struct HeaderRow: View {
 
             Spacer()
 
-            Button { appState.showSettings = true } label: {
+            Button {
+                controller.userPressedEscape()
+                appState.showSettings = true
+            } label: {
                 Image(systemName: "gearshape.fill")
                     .font(.system(size: 11))
                     .foregroundColor(Theme.textSecondary.opacity(0.6))

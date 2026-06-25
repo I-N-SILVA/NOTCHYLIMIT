@@ -2,6 +2,18 @@ import Foundation
 import Combine
 import SwiftUI
 
+public enum NotchOpenBehavior: String, Codable, CaseIterable {
+    case click
+    case hover
+
+    public var displayName: String {
+        switch self {
+        case .click: return "Click"
+        case .hover: return "Hover"
+        }
+    }
+}
+
 /// Single source of truth for UI state. Backed by `@Published` properties so
 /// any SwiftUI view bound to it reacts instantly.
 public final class AppState: ObservableObject {
@@ -27,6 +39,7 @@ public final class AppState: ObservableObject {
 
     // ── Display mode ───────────────────────────────────────────────────────
     @Published public var displayMode: DisplayMode = .auto { didSet { persist() } }
+    @Published public var notchOpenBehavior: NotchOpenBehavior = .click { didSet { persist() } }
 
     // ── UI state ──────────────────────────────────────────────────────────
     @Published public var notchState: NotchState = .compactIdle
@@ -120,6 +133,7 @@ public final class AppState: ObservableObject {
 
     private enum Key {
         static let displayMode      = "notchy.displayMode"
+        static let notchOpenBehavior = "notchy.notchOpenBehavior"
         static let activeProvider   = "notchy.activeProvider"
         static let enabledProviders = "notchy.enabledProviders"
         static let pollInterval     = "notchy.pollIntervalSeconds"
@@ -134,6 +148,10 @@ public final class AppState: ObservableObject {
         let d = UserDefaults.standard
         if let raw = d.string(forKey: Key.displayMode), let mode = DisplayMode(rawValue: raw) {
             displayMode = mode
+        }
+        if let raw = d.string(forKey: Key.notchOpenBehavior),
+           let behavior = NotchOpenBehavior(rawValue: raw) {
+            notchOpenBehavior = behavior
         }
         if let raw = d.string(forKey: Key.activeProvider), let p = ProviderId(rawValue: raw) {
             activeProviderId = p
@@ -158,6 +176,7 @@ public final class AppState: ObservableObject {
         guard !isLoading else { return }
         let d = UserDefaults.standard
         d.set(displayMode.rawValue, forKey: Key.displayMode)
+        d.set(notchOpenBehavior.rawValue, forKey: Key.notchOpenBehavior)
         d.set(activeProviderId.rawValue, forKey: Key.activeProvider)
         d.set(enabledProviders.map(\.rawValue), forKey: Key.enabledProviders)
         d.set(pollIntervalSeconds, forKey: Key.pollInterval)

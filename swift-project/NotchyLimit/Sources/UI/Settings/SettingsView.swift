@@ -193,6 +193,9 @@ struct SettingsView: View {
                     binding: showNotchBinding,
                     enabled: hasHardwareNotch
                 )
+                if hasHardwareNotch && showNotchBinding.wrappedValue {
+                    notchOpenBehaviorRow
+                }
                 displayToggleRow(
                     icon: "menubar.rectangle",
                     title: "Menu bar",
@@ -209,6 +212,48 @@ struct SettingsView: View {
             Spacer()
         }
         .padding(.vertical, 8)
+    }
+
+    private var notchOpenBehaviorRow: some View {
+        HStack(spacing: 12) {
+            ZStack {
+                RoundedRectangle(cornerRadius: 8, style: .continuous)
+                    .fill(Theme.surface)
+                    .frame(width: 34, height: 34)
+                Image(systemName: "cursorarrow.click.2")
+                    .font(.system(size: 15, weight: .medium))
+                    .foregroundColor(Theme.accentWarm)
+            }
+
+            VStack(alignment: .leading, spacing: 1) {
+                Text("Open notch pill")
+                    .font(.system(.subheadline, design: .rounded).weight(.medium))
+                    .foregroundColor(Theme.textPrimary)
+                Text("Choose how the expanded panel appears")
+                    .font(Theme.captionFont)
+                    .foregroundColor(Theme.textSecondary)
+            }
+
+            Spacer()
+
+            Picker("Open notch pill", selection: $appState.notchOpenBehavior) {
+                ForEach(NotchOpenBehavior.allCases, id: \.self) { behavior in
+                    Text(behavior.displayName).tag(behavior)
+                }
+            }
+            .labelsHidden()
+            .pickerStyle(.segmented)
+            .frame(width: 150)
+        }
+        .padding(12)
+        .background(
+            RoundedRectangle(cornerRadius: 12, style: .continuous)
+                .fill(Theme.surface)
+                .overlay(
+                    RoundedRectangle(cornerRadius: 12, style: .continuous)
+                        .strokeBorder(Theme.stroke, lineWidth: 0.75)
+                )
+        )
     }
 
     private var displayFootnote: String {

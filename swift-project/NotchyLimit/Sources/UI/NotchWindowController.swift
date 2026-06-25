@@ -2,6 +2,22 @@ import SwiftUI
 import AppKit
 import Combine
 
+enum NotchPanelLayout {
+    static let compactWidth: CGFloat = 220
+    static let expandedWidth: CGFloat = 380
+    static let compactVisibleHeight: CGFloat = 22
+    static let expandedTopContentClearance: CGFloat = 18
+
+    static func expandedVisibleHeight(for appState: AppState) -> CGFloat {
+        var height: CGFloat = 334
+        if appState.isMultiProvider { height += 30 }
+        if appState.activeIncident != nil { height += 42 }
+        if appState.latestSnapshot?.secondaryWindow != nil { height += 54 }
+        if appState.latestSnapshot?.tertiaryWindow != nil { height += 54 }
+        return min(height, 520)
+    }
+}
+
 /// Owns the borderless, non-activating NSPanel that hosts the notch UI.
 ///
 /// Hover strategy: Timer polling NSEvent.mouseLocation every 40 ms.
@@ -26,9 +42,13 @@ final class NotchWindowController: NSObject {
     private var notchH: CGFloat { ScreenUtils.notchScreen().safeAreaInsets.top }
     // Single provider in the notch — a steady, compact pill width.
     private var compactSize:  NSSize {
-        NSSize(width: 220, height: notchH + 22)
+        NSSize(width: NotchPanelLayout.compactWidth,
+               height: notchH + NotchPanelLayout.compactVisibleHeight)
     }
-    private var expandedSize: NSSize { NSSize(width: 380, height: notchH + 300) }
+    private var expandedSize: NSSize {
+        NSSize(width: NotchPanelLayout.expandedWidth,
+               height: notchH + NotchPanelLayout.expandedVisibleHeight(for: appState))
+    }
 
     init(appState: AppState) {
         self.appState = appState
@@ -56,6 +76,13 @@ final class NotchWindowController: NSObject {
         appState.$notchState
             .receive(on: RunLoop.main)
             .sink { [weak self] state in self?.applyState(state) }
+            .store(in: &cancellables)
+
+        appState.objectWillChange
+            .receive(on: RunLoop.main)
+            .sink { [weak self] _ in
+                DispatchQueue.main.async { self?.resizeExpandedPanelIfNeeded() }
+            }
             .store(in: &cancellables)
     }
 
@@ -120,6 +147,8 @@ final class NotchWindowController: NSObject {
     }
 
     private func pollHover() {
+        guard appState.notchOpenBehavior == .hover else { return }
+
         // Expand the hit-rect slightly so the cursor moving to the expanded
         // panel doesn't immediately trigger a hover-out during the resize.
         let hitRect = panel.frame.insetBy(dx: -4, dy: -4)
@@ -163,6 +192,15 @@ final class NotchWindowController: NSObject {
     }
 
     // MARK: - Layout
+
+    private func resizeExpandedPanelIfNeeded() {
+        switch appState.notchState {
+        case .expandedHover, .expandedPinned:
+            applyState(appState.notchState)
+        default:
+            break
+        }
+    }
 
     private func applyState(_ state: NotchState) {
         let targetSize: NSSize
@@ -225,7 +263,10 @@ struct RootNotchView: View {
                         Button { (NSApp.delegate as? AppDelegate)?.coordinator?.refreshNow() } label: {
                             Label("Refresh", systemImage: "arrow.clockwise")
                         }
-                        Button { appState.showSettings = true } label: {
+                        Button {
+                            controller.userPressedEscape()
+                            appState.showSettings = true
+                        } label: {
                             Label("Settings", systemImage: "gearshape.fill")
                         }
                         Button {

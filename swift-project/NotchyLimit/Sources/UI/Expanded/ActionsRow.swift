@@ -10,12 +10,15 @@ struct ActionsRow: View {
                 (NSApp.delegate as? AppDelegate)?.coordinator?.refreshNow()
             }
             actionButton(label: "Cookie", icon: "key.fill") {
+                controller.userPressedEscape()
                 appState.showOnboarding = true
             }
             actionButton(label: "Alerts", icon: "bell.fill") {
+                controller.userPressedEscape()
                 appState.showSettings = true
             }
             actionButton(label: "Diagnostics", icon: "stethoscope") {
+                controller.userPressedEscape()
                 appState.showDiagnostics = true
             }
             actionButton(label: "Quit", icon: "power") {

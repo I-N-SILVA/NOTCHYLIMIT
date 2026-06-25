@@ -19,6 +19,7 @@ struct CompactView: View {
             NotchPillShape(topRadius: 0, bottomRadius: 14)
                 .fill(Color.black)
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
+                .shadow(color: statusColor.opacity(appeared ? 0.28 : 0), radius: 8, y: 4)
 
             // Visible content strip (bottom 22 pt, below the notch edge).
             HStack(spacing: 7) {
@@ -73,8 +74,7 @@ struct CompactView: View {
             .padding(.horizontal, 10)
             .frame(height: 22)
         }
-        // Colour glow below the island echoes the current usage status.
-        .shadow(color: statusColor.opacity(appeared ? 0.40 : 0), radius: 10, y: 5)
+        .clipShape(NotchPillShape(topRadius: 0, bottomRadius: 14))
         .opacity(appeared ? 1 : 0)
         .onAppear {
             withAnimation(.easeIn(duration: 0.22)) { appeared = true }

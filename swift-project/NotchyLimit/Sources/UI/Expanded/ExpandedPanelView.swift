@@ -17,32 +17,33 @@ struct ExpandedPanelView: View {
     private var notchH: CGFloat    { ScreenUtils.notchScreen().safeAreaInsets.top }
 
     var body: some View {
+        let visibleHeight = NotchPanelLayout.expandedVisibleHeight(for: appState)
+        let cardShape = NotchPillShape(topRadius: 10, bottomRadius: 20)
+
         ZStack(alignment: .bottom) {
-            // Black notch-overlap fill — blends with hardware above.
-            Color.black.frame(maxWidth: .infinity, maxHeight: .infinity)
+            // Black notch-overlap fill — limited to the hidden hardware notch area.
+            VStack(spacing: 0) {
+                Color.black
+                    .frame(width: NotchPanelLayout.expandedWidth, height: notchH)
+                Spacer(minLength: 0)
+            }
 
             // Glass card — the 300 pt visible portion below the notch.
             ZStack(alignment: .topTrailing) {
                 NotchGlassBackground(topRadius: 10, bottomRadius: 20, tintColor: statusColor)
-                    .shadow(color: statusColor.opacity(0.18), radius: 18, y: 6)
-                    .shadow(color: .black.opacity(0.55), radius: 28, y: 10)
 
-                // Pinned badge — appears when user has clicked to lock the panel open
-                if appState.notchState == .expandedPinned {
-                    HStack(spacing: 3) {
-                        Image(systemName: "pin.fill")
-                            .font(.system(size: 8, weight: .semibold))
-                        Text("Pinned")
-                            .font(.system(size: 9, weight: .semibold, design: .rounded))
-                    }
-                    .foregroundColor(Theme.textSecondary.opacity(0.7))
-                    .padding(.horizontal, 7)
-                    .padding(.vertical, 4)
-                    .background(Capsule().fill(Theme.surface))
-                    .padding(.top, 8)
-                    .padding(.trailing, 10)
-                    .transition(.opacity.combined(with: .scale(scale: 0.85, anchor: .topTrailing)))
+                Button {
+                    controller.userPressedEscape()
+                } label: {
+                    Image(systemName: "xmark.circle.fill")
+                        .font(.system(size: 18, weight: .semibold))
+                        .foregroundColor(Theme.textSecondary.opacity(0.78))
+                        .symbolRenderingMode(.hierarchical)
                 }
+                .buttonStyle(.plain)
+                .help("Close")
+                .padding(.top, 10)
+                .padding(.trailing, 12)
 
                 VStack(alignment: .leading, spacing: 10) {
                     HeaderRow(appState: appState, controller: controller)
@@ -74,9 +75,14 @@ struct ExpandedPanelView: View {
                     ActionsRow(appState: appState, controller: controller)
                     FooterRow()
                 }
-                .padding(16)
+                .padding(.horizontal, 16)
+                .padding(.top, 16 + NotchPanelLayout.expandedTopContentClearance)
+                .padding(.bottom, 16)
             }
-            .frame(width: 380, height: 300)
+            .frame(width: NotchPanelLayout.expandedWidth, height: visibleHeight)
+            .clipShape(cardShape)
+            .shadow(color: statusColor.opacity(0.18), radius: 18, y: 6)
+            .shadow(color: .black.opacity(0.55), radius: 28, y: 10)
             // Grows downward from the notch — anchored at top edge.
             .scaleEffect(appeared ? 1 : 0.90, anchor: .top)
             .opacity(appeared ? 1 : 0)
