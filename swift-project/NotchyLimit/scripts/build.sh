@@ -46,6 +46,12 @@ if [[ "${USE_XCODEBUILD:-0}" == "1" ]]; then
     echo "Build failed: $APP_BUILT_PATH not found" >&2; exit 1
   fi
   cp -R "$APP_BUILT_PATH" "$BUILD_DIR/"
+  xattr -cr "$APP_BUNDLE" 2>/dev/null || true
+  echo "==> Ad-hoc signing the bundle (codesign --sign -)"
+  codesign --force --deep --sign - "$APP_BUNDLE" 2>/dev/null \
+    && codesign --verify --strict "$APP_BUNDLE" 2>/dev/null \
+    && echo "    ad-hoc signature OK" \
+    || echo "    (ad-hoc signing skipped/failed — app still runs locally)"
   echo "==> Built (xcodebuild): $BUILD_DIR/$APP_NAME.app"
   echo "Run with: open $BUILD_DIR/$APP_NAME.app"
   exit 0
@@ -85,6 +91,7 @@ swiftc \
   "$SOURCES_DIR/Providers/Claude/ClaudeProvider.swift" \
   "$SOURCES_DIR/Providers/Codex/CodexProvider.swift" \
   "$SOURCES_DIR/Providers/Gemini/GeminiProvider.swift" \
+  "$SOURCES_DIR/Providers/MistralVibe/MistralVibeProvider.swift" \
   "$SOURCES_DIR/Providers/Perplexity/PerplexityProvider.swift" \
   "$SOURCES_DIR/Providers/DeepSeek/DeepSeekProvider.swift" \
   "$SOURCES_DIR/Providers/ElevenLabs/ElevenLabsProvider.swift" \
