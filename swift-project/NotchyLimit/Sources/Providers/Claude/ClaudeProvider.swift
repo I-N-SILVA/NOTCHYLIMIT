@@ -76,14 +76,9 @@ final class ClaudeProvider: UsageProvider {
             if let orgId = oauthCred.orgId {
                 return AuthContext(auth: .bearer(oauthCred.accessToken), orgId: orgId)
             }
-            do {
-                let orgId = try await bootstrapOrgId(auth: .bearer(oauthCred.accessToken))
-                return AuthContext(auth: .bearer(oauthCred.accessToken), orgId: orgId)
-            } catch ProviderError.unauthorized {
-                // Token rejected — fall through to cookie tier
-            }
-            // Other errors (network, decoding) propagate immediately; they're not
-            // auth failures and retrying with the cookie won't help.
+            // The OAuth usage endpoint does not require an organization id.
+            // Avoid the claude.ai bootstrap shape, which is not stable for OAuth.
+            return AuthContext(auth: .bearer(oauthCred.accessToken), orgId: "")
         }
 
         // ── Tier 2: Session cookie ─────────────────────────────────────────

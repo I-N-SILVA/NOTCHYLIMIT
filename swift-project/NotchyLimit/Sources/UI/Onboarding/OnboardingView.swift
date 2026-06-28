@@ -53,6 +53,9 @@ struct OnboardingView: View {
             }
             .padding(20)
         }
+        .onAppear {
+            selectedProvider = appState.activeProviderId
+        }
     }
 
     // MARK: - Step views
@@ -149,7 +152,7 @@ struct OnboardingView: View {
     /// True when this step shows a key/cookie text field the user must fill.
     private func needsTextInput(_ p: ProviderId) -> Bool {
         if usesDetectedOAuth(p) { return false }
-        if p == .codex { return false }   // login-only, no manual entry
+        if p == .codex || p == .mistralVibe { return false }   // login-only, no manual entry
         return true
     }
 
@@ -165,6 +168,9 @@ struct OnboardingView: View {
         case .gemini:
             if usesDetectedOAuth(.gemini) { oauthDetectedStep(.gemini) }
             else { geminiKeyStep }
+        case .mistralVibe:
+            if usesDetectedOAuth(.mistralVibe) { oauthDetectedStep(.mistralVibe) }
+            else { mistralVibeSetupStep }
         case .openai:
             openAIKeyStep
         case .openrouter:
@@ -200,6 +206,7 @@ struct OnboardingView: View {
             switch p {
             case .codex:  return ("Codex CLI", "~/.codex/auth.json", "Reads your ChatGPT-plan session (5h) + weekly limits")
             case .gemini: return ("Gemini CLI", "~/.gemini/oauth_creds.json", "Reads your Code Assist per-model quota")
+            case .mistralVibe: return ("Mistral Vibe CLI", "~/.vibe/.env", "Validates your local Vibe API key")
             default:      return ("Claude CLI", "~/.claude/credentials.json", "Scoped OAuth token — not your full session cookie")
             }
         }()
@@ -245,6 +252,26 @@ struct OnboardingView: View {
             VStack(alignment: .leading, spacing: 6) {
                 featureRow("1.circle.fill", "Install: npm i -g @openai/codex", Theme.textSecondary)
                 featureRow("2.circle.fill", "Run: codex login (sign in with ChatGPT)", Theme.textSecondary)
+                featureRow("3.circle.fill", "Come back and continue", Theme.statusHealthy)
+            }
+            if let err = validateError {
+                Text(err).font(Theme.captionFont).foregroundColor(Theme.statusCritical)
+            }
+        }
+    }
+
+    /// Shown when Mistral Vibe is not configured locally yet.
+    private var mistralVibeSetupStep: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Text("Set up Mistral Vibe CLI")
+                .font(.title3.weight(.semibold))
+                .foregroundColor(Theme.textPrimary)
+            Text("Notchy reads the Vibe API key from the local Vibe CLI setup. There is no key to paste here.")
+                .font(Theme.captionFont)
+                .foregroundColor(Theme.textSecondary)
+            VStack(alignment: .leading, spacing: 6) {
+                featureRow("1.circle.fill", "Install Vibe CLI from mistral.ai/vibe", Theme.textSecondary)
+                featureRow("2.circle.fill", "Run: vibe --setup", Theme.textSecondary)
                 featureRow("3.circle.fill", "Come back and continue", Theme.statusHealthy)
             }
             if let err = validateError {
@@ -540,6 +567,8 @@ struct OnboardingView: View {
         switch selectedProvider {
         case .codex:
             return nil   // CLI OAuth — nothing to save
+        case .mistralVibe:
+            return nil   // Vibe CLI key — nothing to save
         case .claude:
             return AuthService.shared.saveClaudeCredential(
                 ClaudeCredential(cookie: trimmed)

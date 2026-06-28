@@ -31,6 +31,9 @@ public final class AppState: ObservableObject {
     @Published public var snapshots: [ProviderId: ServiceUsageSnapshot] = [:]
     /// Providers the user has enabled (may be 1–3).
     @Published public var enabledProviders: [ProviderId] = [.claude] { didSet { persist() } }
+    /// CLI/OAuth credentials can exist on disk even when the user does not want
+    /// Notchy to use that provider. This opt-out survives relaunches.
+    @Published public var disabledProviders: [ProviderId] = [] { didSet { persist() } }
     /// Latest service-status read per provider, from their status pages.
     @Published public var incidents: [ProviderId: ServiceIncident] = [:]
     /// Last fetch error per provider (cleared on a successful snapshot). Lets the
@@ -136,6 +139,7 @@ public final class AppState: ObservableObject {
         static let notchOpenBehavior = "notchy.notchOpenBehavior"
         static let activeProvider   = "notchy.activeProvider"
         static let enabledProviders = "notchy.enabledProviders"
+        static let disabledProviders = "notchy.disabledProviders"
         static let pollInterval     = "notchy.pollIntervalSeconds"
         static let notifications    = "notchy.notificationsEnabled"
         static let thresholds       = "notchy.thresholds"
@@ -160,6 +164,9 @@ public final class AppState: ObservableObject {
             let restored = raws.compactMap { ProviderId(rawValue: $0) }
             if !restored.isEmpty { enabledProviders = restored }
         }
+        if let raws = d.array(forKey: Key.disabledProviders) as? [String] {
+            disabledProviders = raws.compactMap { ProviderId(rawValue: $0) }
+        }
         if d.object(forKey: Key.pollInterval) != nil {
             let v = d.double(forKey: Key.pollInterval)
             if v >= 60 { pollIntervalSeconds = v }
@@ -179,6 +186,7 @@ public final class AppState: ObservableObject {
         d.set(notchOpenBehavior.rawValue, forKey: Key.notchOpenBehavior)
         d.set(activeProviderId.rawValue, forKey: Key.activeProvider)
         d.set(enabledProviders.map(\.rawValue), forKey: Key.enabledProviders)
+        d.set(disabledProviders.map(\.rawValue), forKey: Key.disabledProviders)
         d.set(pollIntervalSeconds, forKey: Key.pollInterval)
         d.set(notificationsEnabled, forKey: Key.notifications)
         d.set(thresholds, forKey: Key.thresholds)

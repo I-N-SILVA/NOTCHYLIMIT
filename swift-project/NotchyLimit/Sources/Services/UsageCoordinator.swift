@@ -29,8 +29,8 @@ public final class UsageCoordinator {
         // Keep only providers we actually have credentials for (preserves order),
         // then add any configured provider not already listed. This drops stale
         // defaults like an unconfigured Claude so it doesn't sit at "Waiting…".
-        var enabled = appState.enabledProviders.filter { isConfigured($0) }
-        for id in ProviderId.allCases where isConfigured(id) && !enabled.contains(id) {
+        var enabled = appState.enabledProviders.filter { isConfigured($0) && !isDisabled($0) }
+        for id in ProviderId.allCases where isConfigured(id) && !isDisabled(id) && !enabled.contains(id) {
             enabled.append(id)
         }
         if enabled != appState.enabledProviders {
@@ -108,6 +108,7 @@ public final class UsageCoordinator {
         if !appState.enabledProviders.contains(providerId) {
             appState.enabledProviders.append(providerId)
         }
+        appState.disabledProviders.removeAll { $0 == providerId }
         appState.authStatus = .valid
         usageService.start(providers: appState.enabledProviders.filter { isConfigured($0) },
                            interval: appState.pollIntervalSeconds)
@@ -121,9 +122,20 @@ public final class UsageCoordinator {
 
     public func disableProvider(_ providerId: ProviderId) {
         appState.enabledProviders.removeAll { $0 == providerId }
+        if !appState.disabledProviders.contains(providerId) {
+            appState.disabledProviders.append(providerId)
+        }
         appState.snapshots.removeValue(forKey: providerId)
         appState.incidents.removeValue(forKey: providerId)
-        if providerId == appState.activeProviderId { appState.latestSnapshot = nil }
+        appState.providerErrors.removeValue(forKey: providerId)
+        if providerId == appState.activeProviderId {
+            if let next = appState.enabledProviders.first {
+                appState.activeProviderId = next
+                appState.latestSnapshot = appState.snapshots[next]
+            } else {
+                appState.latestSnapshot = nil
+            }
+        }
         usageService.stop(providerId: providerId)
         IncidentMonitor.shared.start(providers: appState.enabledProviders)
     }
@@ -133,6 +145,10 @@ public final class UsageCoordinator {
     private func isConfigured(_ providerId: ProviderId) -> Bool {
         if authService.cliOAuthAvailable(for: providerId) { return true }
         return authService.hasCredential(for: providerId)
+    }
+
+    private func isDisabled(_ providerId: ProviderId) -> Bool {
+        appState.disabledProviders.contains(providerId)
     }
 
     private func handleNotifications(for snapshot: ServiceUsageSnapshot) {

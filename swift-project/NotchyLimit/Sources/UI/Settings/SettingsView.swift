@@ -58,7 +58,9 @@ struct SettingsView: View {
     @ViewBuilder
     private func providerRow(_ p: ProviderId) -> some View {
         let hasCredential = AuthService.shared.hasCredential(for: p)
-        let hasOAuth      = p == .claude && AuthService.shared.claudeHasOAuthAvailable
+        let hasOAuth      = AuthService.shared.cliOAuthAvailable(for: p)
+        let isDisabled    = appState.disabledProviders.contains(p)
+        let isConfigured  = (hasOAuth || hasCredential) && !isDisabled
 
         VStack(alignment: .leading, spacing: 6) {
             HStack(spacing: 8) {
@@ -70,7 +72,14 @@ struct SettingsView: View {
                     .font(.system(.subheadline, design: .rounded).weight(.semibold))
                     .foregroundColor(Theme.textPrimary)
 
-                if hasOAuth {
+                if isDisabled {
+                    Text("Disabled")
+                        .font(.system(size: 9, weight: .semibold))
+                        .foregroundColor(Theme.textSecondary)
+                        .padding(.horizontal, 5)
+                        .padding(.vertical, 2)
+                        .background(Capsule().fill(Theme.textSecondary.opacity(0.12)))
+                } else if hasOAuth {
                     Text("OAuth")
                         .font(.system(size: 9, weight: .semibold))
                         .foregroundColor(Theme.statusHealthy)
@@ -88,7 +97,7 @@ struct SettingsView: View {
 
                 Spacer()
 
-                if hasOAuth || hasCredential {
+                if isConfigured {
                     if hasCredential {
                         Button(p == .claude ? "Replace cookie" : "Replace key") {
                             appState.activeProviderId = p
@@ -96,20 +105,20 @@ struct SettingsView: View {
                         }
                         .buttonStyle(.bordered)
                         .font(Theme.captionFont)
-
-                        Button("Remove") {
-                            AuthService.shared.clearCredential(for: p)
-                            (NSApp.delegate as? AppDelegate)?.coordinator?.disableProvider(p)
-                            if p == appState.activeProviderId {
-                                appState.authStatus = .notConfigured
-                            }
-                        }
-                        .buttonStyle(.borderless)
-                        .foregroundColor(Theme.statusCritical)
-                        .font(Theme.captionFont)
                     }
+
+                    Button(hasOAuth && !hasCredential ? "Disable" : "Remove") {
+                        AuthService.shared.clearCredential(for: p)
+                        (NSApp.delegate as? AppDelegate)?.coordinator?.disableProvider(p)
+                        if p == appState.activeProviderId {
+                            appState.authStatus = .notConfigured
+                        }
+                    }
+                    .buttonStyle(.borderless)
+                    .foregroundColor(Theme.statusCritical)
+                    .font(Theme.captionFont)
                 } else {
-                    Button("Set up") {
+                    Button(isDisabled ? "Enable" : "Set up") {
                         appState.activeProviderId = p
                         appState.showOnboarding = true
                     }
@@ -120,7 +129,12 @@ struct SettingsView: View {
 
             // Auth tier info for Claude
             if p == .claude {
-                if hasOAuth {
+                if isDisabled {
+                    Text("Claude CLI credentials are available, but Notchy is not using them.")
+                        .font(Theme.captionFont)
+                        .foregroundColor(Theme.textSecondary)
+                        .padding(.leading, 30)
+                } else if hasOAuth {
                     Text("Using OAuth from ~/.claude/credentials.json — scoped, short-lived token.")
                         .font(Theme.captionFont)
                         .foregroundColor(Theme.textSecondary)
@@ -220,7 +234,7 @@ struct SettingsView: View {
                 RoundedRectangle(cornerRadius: 8, style: .continuous)
                     .fill(Theme.surface)
                     .frame(width: 34, height: 34)
-                Image(systemName: "cursorarrow.click.2")
+                Image(systemName: "cursorarrow")
                     .font(.system(size: 15, weight: .medium))
                     .foregroundColor(Theme.accentWarm)
             }

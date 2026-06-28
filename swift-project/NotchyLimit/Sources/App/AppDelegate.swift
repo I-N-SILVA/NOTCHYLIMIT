@@ -80,8 +80,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
             return
         }
         if let current {
-            NSApp.activate(ignoringOtherApps: true)
-            current.makeKeyAndOrderFront(nil)
+            bringAuxWindowForward(current)
             return
         }
 
@@ -109,6 +108,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         window.title = title
         window.titlebarAppearsTransparent = true
         window.isReleasedWhenClosed = false
+        window.level = .floating
+        window.collectionBehavior = [.moveToActiveSpace, .fullScreenAuxiliary]
         window.contentView = content
         window.delegate = self
         window.center()
@@ -119,8 +120,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         case .diagnostics: diagnosticsWindow = window
         }
 
+        bringAuxWindowForward(window)
+    }
+
+    private func bringAuxWindowForward(_ window: NSWindow) {
+        NSRunningApplication.current.activate(options: [.activateAllWindows, .activateIgnoringOtherApps])
         NSApp.activate(ignoringOtherApps: true)
         window.makeKeyAndOrderFront(nil)
+        window.orderFrontRegardless()
     }
 
     func windowWillClose(_ notification: Notification) {

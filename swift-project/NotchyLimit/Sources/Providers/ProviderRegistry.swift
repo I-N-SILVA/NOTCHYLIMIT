@@ -13,6 +13,7 @@ public final class ProviderRegistry {
         register(OpenAIProvider())
         register(OpenRouterProvider())
         register(GeminiProvider())
+        register(MistralVibeProvider())
         register(PerplexityProvider())
         register(DeepSeekProvider())
         register(ElevenLabsProvider())

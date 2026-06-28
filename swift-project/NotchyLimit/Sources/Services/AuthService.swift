@@ -20,12 +20,14 @@ public final class AuthService {
     }
 
     /// True when a provider can authenticate from a CLI-written OAuth token file
-    /// (no key to paste): Claude (`~/.claude`), Codex (`~/.codex`), Gemini (`~/.gemini`).
+    /// (no key to paste): Claude (`~/.claude`), Codex (`~/.codex`),
+    /// Gemini (`~/.gemini`), Mistral Vibe (`~/.vibe`).
     public func cliOAuthAvailable(for providerId: ProviderId) -> Bool {
         switch providerId {
         case .claude: return ClaudeOAuthCredential.isAvailable()
         case .codex:  return CodexOAuthCredential.isAvailable()
         case .gemini: return GeminiOAuthCredential.isAvailable()
+        case .mistralVibe: return MistralVibeCredential.isAvailable()
         default:      return false
         }
     }

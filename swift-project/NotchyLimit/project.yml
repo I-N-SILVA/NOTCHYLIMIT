@@ -11,8 +11,8 @@ settings:
     SWIFT_VERSION: "5.9"
     MACOSX_DEPLOYMENT_TARGET: "12.0"
     PRODUCT_BUNDLE_IDENTIFIER: com.notchylimit.NotchyLimit
-    MARKETING_VERSION: "0.1.0"
-    CURRENT_PROJECT_VERSION: "1"
+    MARKETING_VERSION: "0.5.1"
+    CURRENT_PROJECT_VERSION: "3"
     CODE_SIGN_STYLE: Automatic
     DEVELOPMENT_TEAM: ""  # Set to your 10-char Apple Team ID before notarizing: https://developer.apple.com/account
     ENABLE_HARDENED_RUNTIME: YES
@@ -37,8 +37,8 @@ targets:
         CFBundleName: NotchyLimit
         CFBundleDisplayName: Notchy Limit
         CFBundleIdentifier: com.notchylimit.NotchyLimit
-        CFBundleShortVersionString: "0.1.0"
-        CFBundleVersion: "1"
+        CFBundleShortVersionString: "0.5.1"
+        CFBundleVersion: "3"
         LSMinimumSystemVersion: "12.0"
         LSUIElement: true
         NSPrincipalClass: NSApplication

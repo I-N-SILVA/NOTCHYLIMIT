@@ -8,6 +8,7 @@ public enum ProviderId: String, Codable, Hashable, CaseIterable {
     case openai      // OpenAI API (billing-based usage monitoring)
     case openrouter  // OpenRouter — credits used vs. credits purchased (%)
     case gemini      // Google Gemini — Code Assist quota (%) or connected-only
+    case mistralVibe // Mistral Vibe CLI — connected-only via local Vibe config
     case perplexity  // Perplexity — connected status only (no usage endpoint)
     case deepseek    // DeepSeek — remaining credit balance (no %)
     case elevenlabs  // ElevenLabs — character usage vs. monthly limit (%)
@@ -19,6 +20,7 @@ public enum ProviderId: String, Codable, Hashable, CaseIterable {
         case .openai:      return "OpenAI"
         case .openrouter:  return "OpenRouter"
         case .gemini:      return "Gemini"
+        case .mistralVibe: return "Mistral Vibe"
         case .perplexity:  return "Perplexity"
         case .deepseek:    return "DeepSeek"
         case .elevenlabs:  return "ElevenLabs"
@@ -31,7 +33,8 @@ public enum ProviderId: String, Codable, Hashable, CaseIterable {
         case .codex:       return "chevron.left.forwardslash.chevron.right"
         case .openai:      return "circle.hexagongrid"
         case .openrouter:  return "arrow.triangle.branch"
-        case .gemini:      return "star.four.pointed"
+        case .gemini:      return "star.fill"
+        case .mistralVibe: return "wind"
         case .perplexity:  return "magnifyingglass.circle"
         case .deepseek:    return "water.waves"
         case .elevenlabs:  return "waveform"
@@ -41,7 +44,7 @@ public enum ProviderId: String, Codable, Hashable, CaseIterable {
     /// True if the provider is implemented and selectable in onboarding.
     public var isAvailable: Bool {
         switch self {
-        case .claude, .codex, .openai, .openrouter, .gemini, .perplexity, .deepseek, .elevenlabs:
+        case .claude, .codex, .openai, .openrouter, .gemini, .mistralVibe, .perplexity, .deepseek, .elevenlabs:
             return true
         }
     }
@@ -51,8 +54,8 @@ public enum ProviderId: String, Codable, Hashable, CaseIterable {
     /// UI shows that instead of a percentage.
     public var reportsQuota: Bool {
         switch self {
-        case .claude, .codex, .openai, .openrouter, .gemini, .elevenlabs:  return true
-        case .perplexity, .deepseek:                                       return false
+        case .claude, .codex, .openai, .openrouter, .gemini, .elevenlabs: return true
+        case .mistralVibe, .perplexity, .deepseek:                        return false
         }
     }
 
@@ -60,7 +63,7 @@ public enum ProviderId: String, Codable, Hashable, CaseIterable {
     /// disk (no key to paste) — detected automatically in onboarding.
     public var usesCLIOAuth: Bool {
         switch self {
-        case .claude, .codex, .gemini: return true
+        case .claude, .codex, .gemini, .mistralVibe: return true
         default: return false
         }
     }
@@ -73,7 +76,7 @@ public enum ProviderId: String, Codable, Hashable, CaseIterable {
         case .codex, .openai: return URL(string: "https://status.openai.com")
         case .perplexity:  return URL(string: "https://status.perplexity.com")
         case .elevenlabs:  return URL(string: "https://status.elevenlabs.io")
-        case .openrouter, .gemini, .deepseek:
+        case .openrouter, .gemini, .mistralVibe, .deepseek:
             return nil   // no known statuspage.io instance
         }
     }
