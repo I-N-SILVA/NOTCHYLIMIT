@@ -69,8 +69,12 @@ final class ClaudeProvider: UsageProvider {
     /// is available, or the specific auth error from whichever tier was attempted.
     private func resolveAuthContext() async throws -> AuthContext {
         // ── Tier 1: OAuth ──────────────────────────────────────────────────
-        if let oauthCred = ClaudeOAuthCredential.readFromDisk(),
-           !oauthCred.isLikelyExpired {
+        if let oauthCred = ClaudeOAuthCredential.readFromDisk() {
+            guard !oauthCred.isLikelyExpired else {
+                throw ProviderError.expiredCredentials(
+                    "Claude CLI token expired. Open Claude Code or sign in again there, then retry Notchy."
+                )
+            }
             // Claude Code stores the org id alongside the token — use it directly
             // and skip the bootstrap round-trip.
             if let orgId = oauthCred.orgId {

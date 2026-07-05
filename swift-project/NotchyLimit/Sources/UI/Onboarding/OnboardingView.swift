@@ -103,6 +103,7 @@ struct OnboardingView: View {
     @ViewBuilder
     private func providerRow(_ p: ProviderId) -> some View {
         let isSelected = selectedProvider == p
+        let hasExpiredClaudeOAuth = p == .claude && ClaudeOAuthCredential.hasExpiredCredential()
         Button {
             if p.isAvailable { selectedProvider = p }
         } label: {
@@ -118,6 +119,10 @@ struct OnboardingView: View {
                     Text("CLI detected")
                         .font(Theme.captionFont)
                         .foregroundColor(Theme.statusHealthy)
+                } else if hasExpiredClaudeOAuth {
+                    Text("CLI expired")
+                        .font(Theme.captionFont)
+                        .foregroundColor(Theme.statusWarning)
                 } else {
                     Text(p.isAvailable ? (isSelected ? "Selected" : "") : "Coming soon")
                         .font(Theme.captionFont)
@@ -152,6 +157,7 @@ struct OnboardingView: View {
     /// True when this step shows a key/cookie text field the user must fill.
     private func needsTextInput(_ p: ProviderId) -> Bool {
         if usesDetectedOAuth(p) { return false }
+        if p == .claude && ClaudeOAuthCredential.hasExpiredCredential() { return false }
         if p == .codex || p == .mistralVibe { return false }   // login-only, no manual entry
         return true
     }
@@ -161,6 +167,7 @@ struct OnboardingView: View {
         switch selectedProvider {
         case .claude:
             if usesDetectedOAuth(.claude) { oauthDetectedStep(.claude) }
+            else if ClaudeOAuthCredential.hasExpiredCredential() { claudeCLIExpiredStep }
             else { claudeCookieStep }
         case .codex:
             if usesDetectedOAuth(.codex) { oauthDetectedStep(.codex) }
@@ -207,7 +214,7 @@ struct OnboardingView: View {
             case .codex:  return ("Codex CLI", "~/.codex/auth.json", "Reads your ChatGPT-plan session (5h) + weekly limits")
             case .gemini: return ("Gemini CLI", "~/.gemini/oauth_creds.json", "Reads your Code Assist per-model quota")
             case .mistralVibe: return ("Mistral Vibe CLI", "~/.vibe/.env", "Validates your local Vibe API key")
-            default:      return ("Claude CLI", "~/.claude/credentials.json", "Scoped OAuth token — not your full session cookie")
+            default:      return ("Claude CLI", "Claude Code Keychain or ~/.claude/credentials.json", "Scoped OAuth token — not your full session cookie")
             }
         }()
         VStack(alignment: .leading, spacing: 12) {
@@ -254,6 +261,45 @@ struct OnboardingView: View {
                 featureRow("2.circle.fill", "Run: codex login (sign in with ChatGPT)", Theme.textSecondary)
                 featureRow("3.circle.fill", "Come back and continue", Theme.statusHealthy)
             }
+            if let err = validateError {
+                Text(err).font(Theme.captionFont).foregroundColor(Theme.statusCritical)
+            }
+        }
+    }
+
+    /// Shown when Claude Code credentials exist but their access token has expired.
+    private var claudeCLIExpiredStep: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Text("Refresh Claude CLI login")
+                .font(.title3.weight(.semibold))
+                .foregroundColor(Theme.textPrimary)
+            Text("Notchy found your Claude Code credentials, but the local OAuth token is expired. This is safer than a browser cookie, but Claude Code must refresh it first.")
+                .font(Theme.captionFont)
+                .foregroundColor(Theme.textSecondary)
+
+            VStack(alignment: .leading, spacing: 6) {
+                featureRow("1.circle.fill", "Open Claude Code or Claude Desktop", Theme.textSecondary)
+                featureRow("2.circle.fill", "Sign in again if prompted, or start a Claude session once", Theme.textSecondary)
+                featureRow("3.circle.fill", "Come back and retry Notchy", Theme.statusHealthy)
+            }
+
+            HStack(alignment: .top, spacing: 8) {
+                Image(systemName: "exclamationmark.triangle.fill")
+                    .foregroundColor(Theme.statusWarning)
+                    .font(.system(size: 12))
+                    .padding(.top, 1)
+                Text("Only use the session-cookie fallback if the Claude CLI route still cannot be refreshed.")
+                    .font(Theme.captionFont)
+                    .foregroundColor(Theme.textSecondary)
+            }
+            .padding(10)
+            .background(
+                RoundedRectangle(cornerRadius: 8)
+                    .fill(Theme.statusWarning.opacity(0.06))
+                    .overlay(RoundedRectangle(cornerRadius: 8)
+                        .strokeBorder(Theme.statusWarning.opacity(0.20)))
+            )
+
             if let err = validateError {
                 Text(err).font(Theme.captionFont).foregroundColor(Theme.statusCritical)
             }
@@ -479,6 +525,7 @@ struct OnboardingView: View {
         case .welcome:        return "Get started"
         case .provider:       return "Continue"
         case .credential:
+            if selectedProvider == .claude && ClaudeOAuthCredential.hasExpiredCredential() { return "Retry" }
             return usesDetectedOAuth(selectedProvider) ? "Continue" : "Validate"
         case .validate:       return validating ? "…" : "Continue"
         case .notifications:  return "Finish"

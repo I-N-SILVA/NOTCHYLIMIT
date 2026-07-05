@@ -59,6 +59,7 @@ struct SettingsView: View {
     private func providerRow(_ p: ProviderId) -> some View {
         let hasCredential = AuthService.shared.hasCredential(for: p)
         let hasOAuth      = AuthService.shared.cliOAuthAvailable(for: p)
+        let hasExpiredClaudeOAuth = p == .claude && ClaudeOAuthCredential.hasExpiredCredential()
         let isDisabled    = appState.disabledProviders.contains(p)
         let isConfigured  = (hasOAuth || hasCredential) && !isDisabled
 
@@ -79,6 +80,13 @@ struct SettingsView: View {
                         .padding(.horizontal, 5)
                         .padding(.vertical, 2)
                         .background(Capsule().fill(Theme.textSecondary.opacity(0.12)))
+                } else if hasExpiredClaudeOAuth {
+                    Text("CLI expired")
+                        .font(.system(size: 9, weight: .semibold))
+                        .foregroundColor(Theme.statusWarning)
+                        .padding(.horizontal, 5)
+                        .padding(.vertical, 2)
+                        .background(Capsule().fill(Theme.statusWarning.opacity(0.12)))
                 } else if hasOAuth {
                     Text("OAuth")
                         .font(.system(size: 9, weight: .semibold))
@@ -135,9 +143,14 @@ struct SettingsView: View {
                         .foregroundColor(Theme.textSecondary)
                         .padding(.leading, 30)
                 } else if hasOAuth {
-                    Text("Using OAuth from ~/.claude/credentials.json — scoped, short-lived token.")
+                    Text("Using Claude CLI OAuth from Keychain or ~/.claude/credentials.json — scoped, short-lived token.")
                         .font(Theme.captionFont)
                         .foregroundColor(Theme.textSecondary)
+                        .padding(.leading, 30)
+                } else if hasExpiredClaudeOAuth {
+                    Text("Claude CLI token expired. Open Claude Code or Claude Desktop, sign in again if prompted, then retry Notchy.")
+                        .font(Theme.captionFont)
+                        .foregroundColor(Theme.statusWarning)
                         .padding(.leading, 30)
                 } else if hasCredential {
                     HStack(spacing: 5) {

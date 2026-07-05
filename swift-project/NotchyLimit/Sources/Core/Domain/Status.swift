@@ -18,6 +18,7 @@ public enum SyncStatus: Hashable {
 /// Categorised provider errors so the UI can react meaningfully.
 public enum ProviderError: Error, Hashable, CustomStringConvertible {
     case missingCredentials
+    case expiredCredentials(String)
     case unauthorized          // 401/403
     case rateLimited           // 429
     case transport(String)     // network down etc.
@@ -28,6 +29,7 @@ public enum ProviderError: Error, Hashable, CustomStringConvertible {
     public var description: String {
         switch self {
         case .missingCredentials: return "Missing credentials"
+        case .expiredCredentials(let m): return m
         case .unauthorized:       return "Authentication expired"
         case .rateLimited:        return "Rate limited"
         // transport and unknown intentionally omit the raw message —
@@ -42,7 +44,7 @@ public enum ProviderError: Error, Hashable, CustomStringConvertible {
 
     public var isAuthIssue: Bool {
         switch self {
-        case .unauthorized, .missingCredentials: return true
+        case .unauthorized, .missingCredentials, .expiredCredentials: return true
         default: return false
         }
     }

@@ -29,11 +29,17 @@ struct ClaudeOAuthCredential {
         return nil
     }
 
-    /// Existence check that does NOT decrypt the Keychain secret (so it never
-    /// triggers an ACL prompt): file present, or a matching Keychain item exists.
+    /// Returns true only when Notchy can actually read and parse a usable OAuth
+    /// credential. A Keychain item that exists but is not readable by this app
+    /// should not be shown as "detected" in onboarding.
     static func isAvailable() -> Bool {
-        if FileManager.default.fileExists(atPath: filePath().path) { return true }
-        return keychainItemExists()
+        guard let cred = readFromDisk() else { return false }
+        return !cred.isLikelyExpired
+    }
+
+    static func hasExpiredCredential() -> Bool {
+        guard let cred = readFromDisk() else { return false }
+        return cred.isLikelyExpired
     }
 
     // MARK: - Parsing
@@ -91,23 +97,12 @@ struct ClaudeOAuthCredential {
             kSecClass as String: kSecClassGenericPassword,
             kSecAttrService as String: keychainService,
             kSecReturnData as String: true,
-            kSecMatchLimit as String: kSecMatchLimitOne
+            kSecMatchLimit as String: kSecMatchLimitOne,
+            kSecUseOperationPrompt as String: "Notchy wants to read your Claude Code OAuth token from Keychain."
         ]
         var item: CFTypeRef?
         guard SecItemCopyMatching(query as CFDictionary, &item) == errSecSuccess,
               let data = item as? Data else { return nil }
         return data
-    }
-
-    /// Existence only — returns attributes, not the secret, so no ACL prompt.
-    private static func keychainItemExists() -> Bool {
-        let query: [String: Any] = [
-            kSecClass as String: kSecClassGenericPassword,
-            kSecAttrService as String: keychainService,
-            kSecReturnAttributes as String: true,
-            kSecMatchLimit as String: kSecMatchLimitOne
-        ]
-        var item: CFTypeRef?
-        return SecItemCopyMatching(query as CFDictionary, &item) == errSecSuccess
     }
 }
