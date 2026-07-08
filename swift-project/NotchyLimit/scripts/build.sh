@@ -98,6 +98,7 @@ swiftc \
   "$SOURCES_DIR/Services/NotificationService.swift" \
   "$SOURCES_DIR/Services/UsageCoordinator.swift" \
   "$SOURCES_DIR/Services/UsageService.swift" \
+  "$SOURCES_DIR/Services/UsageHistoryStore.swift" \
   "$SOURCES_DIR/UI/Theme/Theme.swift" \
   "$SOURCES_DIR/UI/Theme/BrandIcon.swift" \
   "$SOURCES_DIR/UI/Theme/GlassBackground.swift" \
@@ -116,6 +117,7 @@ swiftc \
   "$SOURCES_DIR/UI/Expanded/ActionsRow.swift" \
   "$SOURCES_DIR/UI/Expanded/FooterRow.swift" \
   "$SOURCES_DIR/UI/Expanded/ProviderSwitcherRow.swift" \
+  "$SOURCES_DIR/UI/Expanded/Sparkline.swift" \
   "$SOURCES_DIR/UI/Expanded/ExpandedPanelView.swift" \
   "$SOURCES_DIR/UI/Onboarding/OnboardingView.swift" \
   "$SOURCES_DIR/UI/Settings/SettingsView.swift" \

@@ -48,6 +48,12 @@ final class MenuBarController: NSObject {
             .sink { [weak self] _ in self?.updateButtonAppearance() }
             .store(in: &cancellables)
 
+        // Repaint immediately when the user changes what the menu bar shows (#21).
+        appState.$menuBarStyle
+            .receive(on: RunLoop.main)
+            .sink { [weak self] _ in self?.updateButtonAppearance() }
+            .store(in: &cancellables)
+
         // Build the popover
         let popoverView = MenuBarPopoverView(appState: appState) { [weak self] in
             self?.closePopover()
@@ -92,16 +98,21 @@ final class MenuBarController: NSObject {
             button.image?.isTemplate = true
         }
 
-        // Trailing value next to the glyph.
+        // Trailing value next to the glyph, honoring the user's menu-bar style (#21).
+        let percent = "\(Int((appState.sessionPercent * 100).rounded()))%"
         let value: String
         if case .syncing = appState.syncStatus {
             value = ""
         } else if appState.authStatus == .notConfigured || appState.authStatus == .expired {
             value = ""
+        } else if appState.menuBarStyle == .iconOnly {
+            value = ""
         } else if !appState.activeShowsPercentBar {
             value = appState.activeShortLabel                       // "$110" / "Active"
+        } else if appState.menuBarStyle == .countdown {
+            value = appState.sessionResetShortString ?? percent
         } else {
-            value = "\(Int((appState.sessionPercent * 100).rounded()))%"
+            value = percent
         }
 
         // Tint: nil = monochrome (adapts to the menu bar). Colour only when meaningful.
@@ -342,6 +353,11 @@ private struct MenuBarPopoverView: View {
             )
         }
         .buttonStyle(.plain)
+        .contextMenu {
+            if let url = id.dashboardURL {
+                Button("Open \(id.displayName) dashboard") { NSWorkspace.shared.open(url) }
+            }
+        }
     }
 
     private func subline(id: ProviderId, snap: ServiceUsageSnapshot?, incident: ServiceIncident?) -> String {
@@ -391,6 +407,12 @@ private struct MenuBarPopoverView: View {
                     .foregroundColor(Theme.textSecondary)
             }
             Spacer()
+            if let url = appState.activeProviderId.dashboardURL {
+                iconButton("arrow.up.right.square",
+                           help: "Open \(appState.activeProviderId.displayName) dashboard") {
+                    NSWorkspace.shared.open(url)
+                }
+            }
             iconButton("arrow.clockwise", help: "Refresh") {
                 (NSApp.delegate as? AppDelegate)?.coordinator?.refreshNow()
             }

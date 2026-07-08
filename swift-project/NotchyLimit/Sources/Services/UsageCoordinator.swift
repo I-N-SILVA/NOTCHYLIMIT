@@ -53,6 +53,13 @@ public final class UsageCoordinator {
                 guard let self else { return }
                 self.appState.snapshots[snapshot.providerId] = snapshot
                 self.appState.providerErrors[snapshot.providerId] = nil
+                // Record a point for the 7-day trend sparkline (#22) — only for
+                // providers that expose a real usage percentage.
+                if snapshot.showsPercentBar {
+                    UsageHistoryStore.shared.record(providerId: snapshot.providerId,
+                                                    percent: snapshot.primaryWindow.percentUsed,
+                                                    at: snapshot.capturedAt)
+                }
                 if snapshot.providerId == self.appState.activeProviderId {
                     self.appState.latestSnapshot = snapshot
                     self.appState.authStatus     = .valid

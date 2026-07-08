@@ -184,11 +184,9 @@ enum GeminiEndpoint {
 
 // MARK: - Provider
 
-/// Gemini provider. Prefers Code Assist OAuth (real per-model quota); falls back
-/// to a connected-only status when only an API key is present.
-///
-/// NOTE: Google is retiring Gemini CLI / Code Assist for individuals on
-/// 2026-06-18 in favour of Antigravity — revisit the endpoint after that.
+/// Gemini provider. Since the 2026-06-18 Code Assist sunset, it prefers the
+/// Antigravity token (real per-model quota via cloudcode-pa), then falls back to
+/// legacy Gemini CLI Code Assist, then to a connected-only API-key status.
 final class GeminiProvider: UsageProvider {
     let id: ProviderId = .gemini
     let displayName: String = "Gemini"
@@ -203,18 +201,20 @@ final class GeminiProvider: UsageProvider {
     }
 
     func fetchUsage() async throws -> ServiceUsageSnapshot {
-        // 1) Gemini CLI / Code Assist (works until Google's 2026-06-18 sunset).
-        if GeminiOAuthCredential.isAvailable(), let cred = GeminiOAuthCredential.readFromDisk() {
-            do { return try await fetchCodeAssistUsage(cred) }
-            catch ProviderError.unauthorized { /* token dead — try Antigravity next */ }
-        }
-        // 2) Antigravity (successor). Reuses the same cloudcode-pa flow with the
-        //    token Antigravity stores; no refresh token on disk, so a stale token
-        //    just falls through rather than erroring.
+        // 1) Antigravity — the PRIMARY source since Google retired Gemini CLI /
+        //    Code Assist for individuals on 2026-06-18. Reuses the same
+        //    cloudcode-pa flow with the token Antigravity stores; no refresh
+        //    token on disk, so a stale token just falls through rather than erroring.
         if let token = GeminiAntigravityCredential.readAccessToken() {
             let cred = GeminiOAuthCredential(accessToken: token, refreshToken: nil, idToken: nil, expiryDateMs: nil)
             do { return try await fetchCodeAssistUsage(cred) }
-            catch ProviderError.unauthorized { /* stale Antigravity token — fall through */ }
+            catch ProviderError.unauthorized { /* stale Antigravity token — try legacy Code Assist next */ }
+        }
+        // 2) Legacy Gemini CLI / Code Assist — kept as a fallback for users who
+        //    still have working credentials on disk after the sunset.
+        if GeminiOAuthCredential.isAvailable(), let cred = GeminiOAuthCredential.readFromDisk() {
+            do { return try await fetchCodeAssistUsage(cred) }
+            catch ProviderError.unauthorized { /* token dead — fall through */ }
         }
         // 3) API-key fallback → connected-only.
         if let apiCred: GeminiCredential = AuthService.shared.loadCredential(for: .gemini), !apiCred.apiKey.isEmpty {

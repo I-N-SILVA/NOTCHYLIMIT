@@ -48,18 +48,14 @@ struct CompactView: View {
                     CompactProgressBar(progress: appState.sessionPercent, color: statusColor)
                         .frame(height: 3)
 
-                    // Percentage — or reset countdown when the session is blocked
-                    if appState.isAtSessionLimit {
-                        Text(appState.sessionResetShortString ?? "LIMIT")
-                            .font(.system(size: 9, weight: .bold, design: .monospaced))
-                            .foregroundColor(.white)
-                            .frame(minWidth: 40, alignment: .trailing)
-                    } else {
-                        Text("\(Int((appState.sessionPercent * 100).rounded()))%")
-                            .font(.system(size: 9, weight: .semibold, design: .monospaced))
-                            .foregroundColor(.white.opacity(0.88))
-                            .frame(minWidth: 25, alignment: .trailing)
-                    }
+                    // Percentage / reset countdown per the user's pill preference —
+                    // always the reset countdown when the session is blocked.
+                    Text(pillLabel)
+                        .font(.system(size: 9,
+                                      weight: appState.isAtSessionLimit ? .bold : .semibold,
+                                      design: .monospaced))
+                        .foregroundColor(.white.opacity(appState.isAtSessionLimit ? 1 : 0.88))
+                        .frame(minWidth: 40, alignment: .trailing)
                 } else {
                     // Balance ("$110.00") or connected-only ("Active") — no fake bar.
                     Text(appState.activeShortLabel)
@@ -84,4 +80,26 @@ struct CompactView: View {
     }
 
     private var statusColor: Color { appState.sessionStatus.color }
+
+    /// The pill's trailing text, honoring `AppState.pillContent` (#20).
+    private var pillLabel: String {
+        let percent = "\(Int((appState.sessionPercent * 100).rounded()))%"
+        // At the limit, the reset countdown is the only useful thing to show.
+        if appState.isAtSessionLimit {
+            return appState.sessionResetShortString ?? "LIMIT"
+        }
+        switch appState.pillContent {
+        case .percent:
+            return percent
+        case .reset:
+            return appState.sessionResetShortString ?? percent
+        case .auto:
+            // Show the countdown once usage is high; otherwise the percentage.
+            if appState.sessionStatus == .warning || appState.sessionStatus == .critical,
+               let reset = appState.sessionResetShortString {
+                return reset
+            }
+            return percent
+        }
+    }
 }

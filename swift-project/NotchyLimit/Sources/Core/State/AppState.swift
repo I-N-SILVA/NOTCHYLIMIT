@@ -2,6 +2,20 @@ import Foundation
 import Combine
 import SwiftUI
 
+/// What the notch pill's trailing text shows (#20).
+public enum PillContent: String, Codable, CaseIterable {
+    case auto      // percent normally, reset countdown when usage is high
+    case percent   // always the usage percentage
+    case reset     // always the reset countdown (falls back to % when unknown)
+}
+
+/// What the menu-bar status item shows next to the glyph (#21).
+public enum MenuBarStyle: String, Codable, CaseIterable {
+    case percent    // usage percentage
+    case countdown  // reset countdown (falls back to % when unknown)
+    case iconOnly   // glyph only, no trailing text
+}
+
 /// Single source of truth for UI state. Backed by `@Published` properties so
 /// any SwiftUI view bound to it reacts instantly.
 public final class AppState: ObservableObject {
@@ -39,6 +53,8 @@ public final class AppState: ObservableObject {
     @Published public var notificationsEnabled: Bool = true { didSet { persist() } }
     @Published public var thresholds: [Double] = [0.25, 0.5, 0.75, 0.9, 1.0] { didSet { persist() } }
     @Published public var launchAtLogin: Bool = false
+    @Published public var pillContent: PillContent = .auto { didSet { persist() } }
+    @Published public var menuBarStyle: MenuBarStyle = .percent { didSet { persist() } }
 
     // MARK: - Convenience (always reflects activeProviderId's snapshot)
 
@@ -125,6 +141,8 @@ public final class AppState: ObservableObject {
         static let pollInterval     = "notchy.pollIntervalSeconds"
         static let notifications    = "notchy.notificationsEnabled"
         static let thresholds       = "notchy.thresholds"
+        static let pillContent      = "notchy.pillContent"
+        static let menuBarStyle     = "notchy.menuBarStyle"
     }
 
     private func load() {
@@ -152,6 +170,12 @@ public final class AppState: ObservableObject {
         if let t = d.array(forKey: Key.thresholds) as? [Double], !t.isEmpty {
             thresholds = t
         }
+        if let raw = d.string(forKey: Key.pillContent), let v = PillContent(rawValue: raw) {
+            pillContent = v
+        }
+        if let raw = d.string(forKey: Key.menuBarStyle), let v = MenuBarStyle(rawValue: raw) {
+            menuBarStyle = v
+        }
     }
 
     private func persist() {
@@ -163,5 +187,7 @@ public final class AppState: ObservableObject {
         d.set(pollIntervalSeconds, forKey: Key.pollInterval)
         d.set(notificationsEnabled, forKey: Key.notifications)
         d.set(thresholds, forKey: Key.thresholds)
+        d.set(pillContent.rawValue, forKey: Key.pillContent)
+        d.set(menuBarStyle.rawValue, forKey: Key.menuBarStyle)
     }
 }
