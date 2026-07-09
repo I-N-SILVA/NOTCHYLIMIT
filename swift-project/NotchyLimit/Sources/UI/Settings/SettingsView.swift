@@ -203,6 +203,40 @@ struct SettingsView: View {
                 .font(Theme.captionFont)
                 .foregroundColor(Theme.textSecondary)
 
+            Divider().background(Theme.stroke)
+
+            Text("What to show")
+                .font(.system(.subheadline, design: .rounded).weight(.semibold))
+                .foregroundColor(Theme.textPrimary)
+
+            if hasHardwareNotch {
+                HStack {
+                    Text("Notch pill").foregroundColor(Theme.textPrimary)
+                    Spacer()
+                    Picker("", selection: $appState.pillContent) {
+                        Text("Percent").tag(PillContent.percent)
+                        Text("Reset").tag(PillContent.reset)
+                        Text("Auto").tag(PillContent.auto)
+                    }
+                    .pickerStyle(.segmented)
+                    .labelsHidden()
+                    .frame(width: 220)
+                }
+            }
+
+            HStack {
+                Text("Menu bar").foregroundColor(Theme.textPrimary)
+                Spacer()
+                Picker("", selection: $appState.menuBarStyle) {
+                    Text("Percent").tag(MenuBarStyle.percent)
+                    Text("Reset").tag(MenuBarStyle.countdown)
+                    Text("Icon only").tag(MenuBarStyle.iconOnly)
+                }
+                .pickerStyle(.segmented)
+                .labelsHidden()
+                .frame(width: 240)
+            }
+
             Spacer()
         }
         .padding(.vertical, 8)

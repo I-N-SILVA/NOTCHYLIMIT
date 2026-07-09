@@ -188,6 +188,9 @@ struct OnboardingView: View {
                 note: "Notchy reads your monthly character usage vs. your plan limit. The key is stored in the macOS Keychain and only ever sent to api.elevenlabs.io.",
                 placeholder: "your-xi-api-key"
             )
+        case .copilot, .cursor:
+            // Scaffolded but not selectable (isAvailable == false); never reached.
+            EmptyView()
         }
     }
 
@@ -566,6 +569,8 @@ struct OnboardingView: View {
             return AuthService.shared.saveElevenLabsCredential(
                 ElevenLabsCredential(apiKey: trimmed)
             )
+        case .copilot, .cursor:
+            return "This provider isn't available yet."
         }
     }
 

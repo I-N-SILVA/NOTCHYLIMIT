@@ -1,4 +1,5 @@
 import SwiftUI
+import AppKit
 
 /// Horizontal row of tappable provider chips shown at the top of the expanded panel
 /// when 2 or more providers are active. Tapping a chip switches `appState.activeProviderId`
@@ -60,5 +61,10 @@ struct ProviderSwitcherRow: View {
         .foregroundColor(Theme.textPrimary)
         .scaleEffect(isActive ? 1.0 : 0.95)
         .animation(.spring(response: 0.25, dampingFraction: 0.7), value: isActive)
+        .contextMenu {
+            if let url = pid.dashboardURL {
+                Button("Open \(pid.displayName) dashboard") { NSWorkspace.shared.open(url) }
+            }
+        }
     }
 }

@@ -61,6 +61,11 @@ struct ExpandedPanelView: View {
                     SessionCard(appState: appState)
                     PaceRow(appState: appState)
 
+                    // 7-day usage trend — appears once enough samples exist (#22).
+                    if appState.activeShowsPercentBar {
+                        Sparkline(appState: appState)
+                    }
+
                     if let weekly = appState.latestSnapshot?.secondaryWindow {
                         WeeklyCard(window: weekly)
                     }
