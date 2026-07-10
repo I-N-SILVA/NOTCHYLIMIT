@@ -74,6 +74,7 @@ swiftc \
   "$SOURCES_DIR/Core/State/NotchState.swift" \
   "$SOURCES_DIR/Platform/KeychainStore.swift" \
   "$SOURCES_DIR/Platform/SQLiteReader.swift" \
+  "$SOURCES_DIR/Platform/FormURLEncoding.swift" \
   "$SOURCES_DIR/Platform/NotchDetector.swift" \
   "$SOURCES_DIR/Platform/ScreenUtils.swift" \
   "$SOURCES_DIR/Platform/DisplayMode.swift" \

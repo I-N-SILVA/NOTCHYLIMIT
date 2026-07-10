@@ -337,7 +337,7 @@ final class GeminiProvider: UsageProvider {
         var request = URLRequest(url: GeminiEndpoint.tokenURL, timeoutInterval: 15)
         request.httpMethod = "POST"
         request.setValue("application/x-www-form-urlencoded", forHTTPHeaderField: "Content-Type")
-        let body = "client_id=\(client.id)&client_secret=\(client.secret)&refresh_token=\(refreshToken)&grant_type=refresh_token"
+        let body = "client_id=\(client.id.formURLEncoded)&client_secret=\(client.secret.formURLEncoded)&refresh_token=\(refreshToken.formURLEncoded)&grant_type=refresh_token"
         request.httpBody = body.data(using: .utf8)
         let (data, response): (Data, URLResponse)
         do { (data, response) = try await session.data(for: request) }

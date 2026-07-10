@@ -38,7 +38,8 @@ done
 [[ "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]] || { echo "version must be X.Y.Z (got '$VERSION')" >&2; exit 1; }
 
 # ── config ─────────────────────────────────────────────────────────────────
-PROJECT_DIR="${PROJECT_DIR:-/Users/bhujoy/notchy/NOTCHY/swift-project/NotchyLimit}"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PROJECT_DIR="${PROJECT_DIR:-$(cd "$SCRIPT_DIR/.." && pwd)}"
 APP_NAME="${APP_NAME:-NotchyLimit}"
 DMG_NAME="${DMG_NAME:-NotchyLimit-Installer}"
 REPO="${REPO:-I-N-SILVA/NOTCHYLIMIT}"
