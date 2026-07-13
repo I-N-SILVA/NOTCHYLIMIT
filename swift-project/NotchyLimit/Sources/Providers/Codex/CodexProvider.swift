@@ -195,7 +195,7 @@ final class CodexProvider: UsageProvider {
         var request = URLRequest(url: CodexEndpoint.tokenURL, timeoutInterval: 15)
         request.httpMethod = "POST"
         request.setValue("application/x-www-form-urlencoded", forHTTPHeaderField: "Content-Type")
-        let body = "grant_type=refresh_token&client_id=\(CodexEndpoint.clientID)&refresh_token=\(refreshToken)"
+        let body = "grant_type=refresh_token&client_id=\(CodexEndpoint.clientID)&refresh_token=\(refreshToken.formURLEncoded)"
         request.httpBody = body.data(using: .utf8)
 
         let (data, response): (Data, URLResponse)
