@@ -44,20 +44,30 @@ public final class AuthService {
         ClaudeOAuthCredential.isAvailable()
     }
 
-    /// Sanitizes, validates, then stores the Claude session cookie.
+    /// Sanitizes, validates, then stores a Claude setup token or session cookie.
     /// Returns a user-facing error string if validation fails, nil on success.
     @discardableResult
     public func saveClaudeCredential(_ credential: ClaudeCredential) -> String? {
         let trimmed = credential.cookie.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !trimmed.isEmpty else { return "Cookie cannot be empty." }
-        guard trimmed.count >= 32 else {
-            return "Cookie looks too short. Paste the full Cookie header from DevTools."
+        guard !trimmed.isEmpty else { return "Token or cookie cannot be empty." }
+
+        let storedSecret: String
+        if let token = ClaudeCredential.normalizedBearerToken(from: trimmed) {
+            storedSecret = token
+        } else {
+            guard trimmed.count >= 32 else {
+                return "That looks too short. Paste the Claude token from `claude setup-token`, or the full Cookie header from DevTools."
+            }
+            guard trimmed.contains("=") || trimmed.contains(";") else {
+                return "That does not look like a Claude token or Cookie header."
+            }
+            storedSecret = trimmed
         }
-        guard trimmed.count <= 65_536 else {
+        guard storedSecret.count <= 65_536 else {
             return "That doesn't look right — it's too long. Copy only the Cookie header value."
         }
         let sanitized = ClaudeCredential(
-            cookie: trimmed,
+            cookie: storedSecret,
             storedAt: credential.storedAt,
             lastValidatedAt: credential.lastValidatedAt
         )

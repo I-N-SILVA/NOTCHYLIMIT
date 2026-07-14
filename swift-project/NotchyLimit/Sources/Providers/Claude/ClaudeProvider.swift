@@ -1,10 +1,12 @@
 import Foundation
 
-/// Claude provider. Tries OAuth before falling back to the browser session cookie.
+/// Claude provider. Tries a user-saved setup token, then CLI OAuth, then the
+/// browser session cookie.
 ///
 /// Auth resolution order on every fetch:
-///   1. `~/.claude/credentials.json` → Bearer token (scoped, short-lived, preferred)
-///   2. Keychain session cookie (full account access, fallback)
+///   1. Notchy Keychain token from `claude setup-token` → Bearer token
+///   2. Claude Code Keychain / `~/.claude/credentials.json` → Bearer token
+///   3. Keychain session cookie (full account access, fallback)
 ///
 /// Both paths hit the same internal `/api/organizations/{org}/usage` endpoint.
 /// If OAuth resolves the org ID and the Bearer request succeeds, the cookie is
@@ -50,7 +52,11 @@ final class ClaudeProvider: UsageProvider {
 
     /// Current auth tier — used by diagnostics + onboarding hint.
     var activeAuthTier: ClaudeAuthTier {
-        ClaudeOAuthCredential.isAvailable() ? .oauth : .cookie
+        if let stored: ClaudeCredential = AuthService.shared.loadCredential(for: .claude),
+           stored.isBearerToken {
+            return .setupToken
+        }
+        return ClaudeOAuthCredential.isAvailable() ? ClaudeAuthTier.oauth : ClaudeAuthTier.cookie
     }
 
     // MARK: - Auth resolution
@@ -68,12 +74,23 @@ final class ClaudeProvider: UsageProvider {
     /// Tries OAuth, falls back to cookie. Throws `missingCredentials` if neither
     /// is available, or the specific auth error from whichever tier was attempted.
     private func resolveAuthContext() async throws -> AuthContext {
-        // ── Tier 1: OAuth ──────────────────────────────────────────────────
+        let stored: ClaudeCredential? = AuthService.shared.loadCredential(for: .claude)
+
+        // ── Tier 1: User-saved setup token ─────────────────────────────────
+        if let token = stored?.bearerToken {
+            return AuthContext(auth: .bearer(token), orgId: "")
+        }
+
+        // ── Tier 2: Claude Code OAuth ──────────────────────────────────────
         if let oauthCred = ClaudeOAuthCredential.readFromDisk() {
             guard !oauthCred.isLikelyExpired else {
-                throw ProviderError.expiredCredentials(
-                    "Claude CLI token expired. Open Claude Code or sign in again there, then retry Notchy."
-                )
+                if stored?.cookie.isEmpty == false {
+                    return try await cookieAuthContext()
+                } else {
+                    throw ProviderError.expiredCredentials(
+                        "Claude CLI token expired. Run `claude setup-token` and paste the token in Notchy for a more reliable setup."
+                    )
+                }
             }
             // Claude Code stores the org id alongside the token — use it directly
             // and skip the bootstrap round-trip.
@@ -85,7 +102,11 @@ final class ClaudeProvider: UsageProvider {
             return AuthContext(auth: .bearer(oauthCred.accessToken), orgId: "")
         }
 
-        // ── Tier 2: Session cookie ─────────────────────────────────────────
+        // ── Tier 3: Session cookie ─────────────────────────────────────────
+        return try await cookieAuthContext()
+    }
+
+    private func cookieAuthContext() async throws -> AuthContext {
         let cookie = try currentCookie()
         if let orgFromCookie = ClaudeCredential(cookie: cookie).orgIdFromCookie {
             return AuthContext(auth: .cookie(cookie), orgId: orgFromCookie)

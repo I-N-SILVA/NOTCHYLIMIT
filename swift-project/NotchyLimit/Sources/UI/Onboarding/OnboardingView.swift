@@ -4,9 +4,9 @@ import AppKit
 /// Multi-step onboarding.
 ///
 /// Flow adapts based on what's available:
-///   - Claude CLI credentials detected → skips cookie step, uses OAuth automatically.
+///   - Claude CLI credentials detected → skips token step, uses OAuth automatically.
 ///   - User selects OpenAI → asks for API key instead of cookie.
-///   - User selects Claude without CLI → asks for session cookie (same as v0.1).
+///   - User selects Claude without valid CLI auth → asks for a setup token.
 struct OnboardingView: View {
     @ObservedObject var appState: AppState
     private func close() { appState.showOnboarding = false }
@@ -157,7 +157,6 @@ struct OnboardingView: View {
     /// True when this step shows a key/cookie text field the user must fill.
     private func needsTextInput(_ p: ProviderId) -> Bool {
         if usesDetectedOAuth(p) { return false }
-        if p == .claude && ClaudeOAuthCredential.hasExpiredCredential() { return false }
         if p == .codex || p == .mistralVibe { return false }   // login-only, no manual entry
         return true
     }
@@ -167,8 +166,7 @@ struct OnboardingView: View {
         switch selectedProvider {
         case .claude:
             if usesDetectedOAuth(.claude) { oauthDetectedStep(.claude) }
-            else if ClaudeOAuthCredential.hasExpiredCredential() { claudeCLIExpiredStep }
-            else { claudeCookieStep }
+            else { claudeTokenStep }
         case .codex:
             if usesDetectedOAuth(.codex) { oauthDetectedStep(.codex) }
             else { codexLoginStep }
@@ -214,7 +212,7 @@ struct OnboardingView: View {
             case .codex:  return ("Codex CLI", "~/.codex/auth.json", "Reads your ChatGPT-plan session (5h) + weekly limits")
             case .gemini: return ("Gemini CLI", "~/.gemini/oauth_creds.json", "Reads your Code Assist per-model quota")
             case .mistralVibe: return ("Mistral Vibe CLI", "~/.vibe/.env", "Validates your local Vibe API key")
-            default:      return ("Claude CLI", "Claude Code Keychain or ~/.claude/credentials.json", "Scoped OAuth token — not your full session cookie")
+            default:      return ("Claude CLI", "Claude Code Keychain or ~/.claude/credentials.json", "Scoped OAuth token")
             }
         }()
         VStack(alignment: .leading, spacing: 12) {
@@ -267,45 +265,6 @@ struct OnboardingView: View {
         }
     }
 
-    /// Shown when Claude Code credentials exist but their access token has expired.
-    private var claudeCLIExpiredStep: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            Text("Refresh Claude CLI login")
-                .font(.title3.weight(.semibold))
-                .foregroundColor(Theme.textPrimary)
-            Text("Notchy found your Claude Code credentials, but the local OAuth token is expired. This is safer than a browser cookie, but Claude Code must refresh it first.")
-                .font(Theme.captionFont)
-                .foregroundColor(Theme.textSecondary)
-
-            VStack(alignment: .leading, spacing: 6) {
-                featureRow("1.circle.fill", "Open Claude Code or Claude Desktop", Theme.textSecondary)
-                featureRow("2.circle.fill", "Sign in again if prompted, or start a Claude session once", Theme.textSecondary)
-                featureRow("3.circle.fill", "Come back and retry Notchy", Theme.statusHealthy)
-            }
-
-            HStack(alignment: .top, spacing: 8) {
-                Image(systemName: "exclamationmark.triangle.fill")
-                    .foregroundColor(Theme.statusWarning)
-                    .font(.system(size: 12))
-                    .padding(.top, 1)
-                Text("Only use the session-cookie fallback if the Claude CLI route still cannot be refreshed.")
-                    .font(Theme.captionFont)
-                    .foregroundColor(Theme.textSecondary)
-            }
-            .padding(10)
-            .background(
-                RoundedRectangle(cornerRadius: 8)
-                    .fill(Theme.statusWarning.opacity(0.06))
-                    .overlay(RoundedRectangle(cornerRadius: 8)
-                        .strokeBorder(Theme.statusWarning.opacity(0.20)))
-            )
-
-            if let err = validateError {
-                Text(err).font(Theme.captionFont).foregroundColor(Theme.statusCritical)
-            }
-        }
-    }
-
     /// Shown when Mistral Vibe is not configured locally yet.
     private var mistralVibeSetupStep: some View {
         VStack(alignment: .leading, spacing: 12) {
@@ -326,31 +285,30 @@ struct OnboardingView: View {
         }
     }
 
-    private var claudeCookieStep: some View {
+    private var claudeTokenStep: some View {
         VStack(alignment: .leading, spacing: 8) {
-            Text("Paste your claude.ai session cookie")
+            Text("Paste your Claude token")
                 .font(.title3.weight(.semibold))
                 .foregroundColor(Theme.textPrimary)
 
-            // Security disclosure — honest about the tradeoff
             HStack(alignment: .top, spacing: 8) {
-                Image(systemName: "exclamationmark.triangle.fill")
-                    .foregroundColor(Theme.statusWarning)
+                Image(systemName: "key.fill")
+                    .foregroundColor(Theme.statusHealthy)
                     .font(.system(size: 12))
                     .padding(.top, 1)
-                Text("This is a full browser session cookie with complete account access. It stays device-only in the macOS Keychain and is never sent anywhere except directly to claude.ai for usage requests. Install Claude CLI to use a safer, scoped token instead.")
+                Text("Run `claude setup-token` in Terminal, then paste the generated token here. Notchy stores it in macOS Keychain and uses it only for Claude usage requests.")
                     .font(Theme.captionFont)
                     .foregroundColor(Theme.textSecondary)
             }
             .padding(10)
             .background(
                 RoundedRectangle(cornerRadius: 8)
-                    .fill(Theme.statusWarning.opacity(0.06))
+                    .fill(Theme.statusHealthy.opacity(0.06))
                     .overlay(RoundedRectangle(cornerRadius: 8)
-                        .strokeBorder(Theme.statusWarning.opacity(0.20)))
+                        .strokeBorder(Theme.statusHealthy.opacity(0.20)))
             )
 
-            Text("In claude.ai, open DevTools (⌘⌥I) → Network → find 'usage' request → copy the Cookie header.")
+            Text("Fallback: you may still paste the full claude.ai Cookie header, but the setup token is preferred.")
                 .font(Theme.captionFont)
                 .foregroundColor(Theme.textSecondary)
 
@@ -525,7 +483,6 @@ struct OnboardingView: View {
         case .welcome:        return "Get started"
         case .provider:       return "Continue"
         case .credential:
-            if selectedProvider == .claude && ClaudeOAuthCredential.hasExpiredCredential() { return "Retry" }
             return usesDetectedOAuth(selectedProvider) ? "Continue" : "Validate"
         case .validate:       return validating ? "…" : "Continue"
         case .notifications:  return "Finish"

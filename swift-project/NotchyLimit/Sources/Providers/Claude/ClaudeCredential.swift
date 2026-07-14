@@ -4,6 +4,9 @@ import Foundation
 /// Used in diagnostics and onboarding hints only — never persisted,
 /// since the active tier is resolved at runtime on every fetch.
 public enum ClaudeAuthTier: String {
+    /// User-pasted long-lived token from `claude setup-token`.
+    /// Stored in Notchy's Keychain and preferred over volatile CLI access tokens.
+    case setupToken
     /// OAuth token from `~/.claude/credentials.json` (Claude CLI / desktop app).
     /// Scoped + short-lived. Preferred because blast radius is much smaller
     /// than the full session cookie.
@@ -13,11 +16,13 @@ public enum ClaudeAuthTier: String {
     case cookie
 }
 
-/// Credential bundle for Claude. Stores the browser session cookie as a fallback.
-/// When `~/.claude/credentials.json` is present the cookie may never be used —
-/// see `ClaudeOAuthCredential` and `ClaudeAuthTier`.
+/// Credential bundle for Claude. Stores either a long-lived Claude token from
+/// `claude setup-token` or the browser session cookie as a fallback.
 ///
-/// We store the entire cookie string (not just `sessionKey=...`) because
+/// We keep the historical `cookie` property name for Codable compatibility with
+/// existing installs. New installs may store a bearer token in the same field.
+///
+/// For cookies, we store the entire cookie string (not just `sessionKey=...`) because
 /// `claude.ai`'s usage endpoint also reads `lastActiveOrg` and other
 /// hardening cookies. Treat this value as a secret — it is keychain-only.
 public struct ClaudeCredential: Codable, Hashable {
@@ -29,6 +34,29 @@ public struct ClaudeCredential: Codable, Hashable {
         self.cookie = cookie
         self.storedAt = storedAt
         self.lastValidatedAt = lastValidatedAt
+    }
+
+    public var bearerToken: String? {
+        Self.normalizedBearerToken(from: cookie)
+    }
+
+    public var isBearerToken: Bool {
+        bearerToken != nil
+    }
+
+    public static func normalizedBearerToken(from raw: String) -> String? {
+        var value = raw.trimmingCharacters(in: .whitespacesAndNewlines)
+        if value.hasPrefix("export ") {
+            value.removeFirst("export ".count)
+            value = value.trimmingCharacters(in: .whitespaces)
+        }
+        if value.hasPrefix("ANTHROPIC_AUTH_TOKEN=") {
+            value.removeFirst("ANTHROPIC_AUTH_TOKEN=".count)
+            value = value.trimmingCharacters(in: .whitespaces)
+        }
+        value = value.trimmingCharacters(in: CharacterSet(charactersIn: "\"'"))
+        guard value.hasPrefix("sk-ant-"), value.count >= 20 else { return nil }
+        return value
     }
 
     /// Extract `lastActiveOrg` value from the cookie string if present.

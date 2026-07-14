@@ -58,8 +58,11 @@ struct SettingsView: View {
     @ViewBuilder
     private func providerRow(_ p: ProviderId) -> some View {
         let hasCredential = AuthService.shared.hasCredential(for: p)
+        let claudeCredential: ClaudeCredential? = p == .claude ? AuthService.shared.loadCredential(for: .claude) : nil
+        let hasClaudeSetupToken = claudeCredential?.isBearerToken == true
+        let hasClaudeCookie = p == .claude && hasCredential && !hasClaudeSetupToken
         let hasOAuth      = AuthService.shared.cliOAuthAvailable(for: p)
-        let hasExpiredClaudeOAuth = p == .claude && ClaudeOAuthCredential.hasExpiredCredential()
+        let hasExpiredClaudeOAuth = p == .claude && !hasCredential && ClaudeOAuthCredential.hasExpiredCredential()
         let isDisabled    = appState.disabledProviders.contains(p)
         let isConfigured  = (hasOAuth || hasCredential) && !isDisabled
 
@@ -80,6 +83,13 @@ struct SettingsView: View {
                         .padding(.horizontal, 5)
                         .padding(.vertical, 2)
                         .background(Capsule().fill(Theme.textSecondary.opacity(0.12)))
+                } else if hasClaudeSetupToken {
+                    Text("Token")
+                        .font(.system(size: 9, weight: .semibold))
+                        .foregroundColor(Theme.statusHealthy)
+                        .padding(.horizontal, 5)
+                        .padding(.vertical, 2)
+                        .background(Capsule().fill(Theme.statusHealthy.opacity(0.12)))
                 } else if hasExpiredClaudeOAuth {
                     Text("CLI expired")
                         .font(.system(size: 9, weight: .semibold))
@@ -107,7 +117,7 @@ struct SettingsView: View {
 
                 if isConfigured {
                     if hasCredential {
-                        Button(p == .claude ? "Replace cookie" : "Replace key") {
+                        Button(p == .claude ? "Replace token" : "Replace key") {
                             appState.activeProviderId = p
                             appState.showOnboarding = true
                         }
@@ -142,22 +152,27 @@ struct SettingsView: View {
                         .font(Theme.captionFont)
                         .foregroundColor(Theme.textSecondary)
                         .padding(.leading, 30)
+                } else if hasClaudeSetupToken {
+                    Text("Using Claude setup token from Notchy Keychain. This is preferred over the volatile CLI access token.")
+                        .font(Theme.captionFont)
+                        .foregroundColor(Theme.textSecondary)
+                        .padding(.leading, 30)
                 } else if hasOAuth {
                     Text("Using Claude CLI OAuth from Keychain or ~/.claude/credentials.json — scoped, short-lived token.")
                         .font(Theme.captionFont)
                         .foregroundColor(Theme.textSecondary)
                         .padding(.leading, 30)
                 } else if hasExpiredClaudeOAuth {
-                    Text("Claude CLI token expired. Open Claude Code or Claude Desktop, sign in again if prompted, then retry Notchy.")
+                    Text("Claude CLI token expired. Run `claude setup-token`, then paste the token in Notchy.")
                         .font(Theme.captionFont)
                         .foregroundColor(Theme.statusWarning)
                         .padding(.leading, 30)
-                } else if hasCredential {
+                } else if hasClaudeCookie {
                     HStack(spacing: 5) {
                         Image(systemName: "exclamationmark.triangle")
                             .font(.system(size: 10))
                             .foregroundColor(Theme.statusWarning)
-                        Text("Using full session cookie. Install Claude CLI for a safer OAuth token.")
+                        Text("Using full session cookie. Replace it with a `claude setup-token` token for a safer setup.")
                             .font(Theme.captionFont)
                             .foregroundColor(Theme.textSecondary)
                     }
